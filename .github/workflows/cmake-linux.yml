@@ -1,0 +1,68 @@
+name: CMake Linux
+
+on: [ push, pull_request ]
+
+env:
+  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ ubuntu-18.04, ubuntu-20.04 ]
+        compiler:
+          - CC: gcc
+            CXX: g++
+          - CC: clang
+            CXX: clang++
+        version: [ 8, 9, 10, 11, 12 ]
+
+        exclude:
+          - platform: ubuntu-18.04
+            compiler:
+              CC: clang
+            version: 11
+          - platform: ubuntu-18.04
+            compiler:
+              CC: clang
+            version: 12
+          - compiler:
+              CC: clang
+            version: 8
+          - compiler:
+              CC: gcc
+            version: 12
+
+    name: ${{ matrix.platform }} - ${{ matrix.compiler.CXX }} ${{ matrix.version }}
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          sudo apt-get install -y ${{ matrix.compiler.CXX }}-${{ matrix.version }}
+
+      - name: Build Dependencies
+        run: |
+          wget --no-check-certificate http://ftp.gnu.org/gnu/bison/bison-3.7.4.tar.gz
+          tar -xf bison-3.7.4.tar.gz
+          cd bison-3.7.4
+          ./configure
+          sudo make -j 4 install
+
+      - name: Configure CMake
+        env:
+          CC: ${{ matrix.compiler.CC }}-${{ matrix.version }}
+          CXX: ${{ matrix.compiler.CXX }}-${{ matrix.version }}
+        run: cmake -B ${{ github.workspace }}/build -D CMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+
+      - name: Build
+        run: cmake --build ${{ github.workspace }}/build --config ${{ env.BUILD_TYPE }}
+
+      - name: Test
+        working-directory: ${{ github.workspace }}/build/test
+        run: ctest -C ${{ env.BUILD_TYPE }} --rerun-failed --output-on-failure
