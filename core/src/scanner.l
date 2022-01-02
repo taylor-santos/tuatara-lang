@@ -52,6 +52,10 @@ class yyFlexLexer;
 
 %}
 
+ident_start    [a-z]
+typename_start [A-Z]
+ident          [_0-9a-zA-Z]
+
 %%
 
 %{
@@ -76,6 +80,9 @@ class yyFlexLexer;
         throw yy::Parser::syntax_error(loc_, ss.str());
     }
 }
+
+{ident_start}{ident}*    { return yy::Parser::make_IDENT(yytext, loc_); }
+{typename_start}{ident}* { return yy::Parser::make_TYPENAME(yytext, loc_); }
 
 [[:blank:]\n\r]+ // Ignore whitespace
 . {
