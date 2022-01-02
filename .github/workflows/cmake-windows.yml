@@ -1,0 +1,37 @@
+name: CMake Windows
+
+on: [ push, pull_request ]
+
+env:
+  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ windows-2019, windows-2022 ]
+        architecture: [ Win32, x64 ]
+
+    name: ${{ matrix.platform }} - ${{ matrix.architecture }}
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Build Dependencies
+        run: |
+          choco install winflexbison3
+          ren "C:\ProgramData\chocolatey\bin\win_bison.exe" "bison.exe"
+          ren "C:\ProgramData\chocolatey\bin\win_flex.exe" "flex.exe"
+
+      - name: Configure CMake
+        run: |
+          cmake -A ${{ matrix.architecture }} -B ${{ github.workspace }}/build -D CMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }}
+
+      - name: Build
+        run: cmake --build ${{ github.workspace }}/build --config ${{ env.BUILD_TYPE }}
+
+      - name: Test
+        working-directory: ${{ github.workspace }}/build/test
+        run: ctest -C ${{ env.BUILD_TYPE }} --rerun-failed --output-on-failure
