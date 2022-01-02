@@ -90,12 +90,12 @@ TEST_CASE("u64 ints should be tokenized correctly") {
 
     for (auto &[str, val] : cases) {
         SUBCASE(str.c_str()) {
-            GIVEN("some an int literal") {
+            GIVEN("an int literal") {
                 iss << str;
                 WHEN("the scanner's scan method is invoked") {
                     auto symbol = scanner.scan();
                     THEN("it should return a u64 token") {
-                        CHECK(symbol.kind() == yy::Parser::symbol_kind::S_U64);
+                        REQUIRE(symbol.kind() == yy::Parser::symbol_kind::S_U64);
                         auto u64 = symbol.value.as<uint64_t>();
                         AND_THEN("the token value should match the input") {
                             CHECK(u64 == val);
@@ -119,6 +119,79 @@ TEST_CASE("int out of 64-bit range should throw") {
                     scanner.scan(),
                     "syntax error, 18_446_744_073_709_551_616 out of range of u64",
                     yy::Parser::syntax_error);
+            }
+        }
+    }
+}
+
+TEST_CASE("valid identifiers") {
+    auto iss     = std::stringstream();
+    auto oss     = std::ostringstream();
+    auto scanner = yy::Scanner("test", iss, oss);
+
+    // Cases
+    std::list<std::string> cases{
+        "a",
+        "abc",
+        "aBcDe",
+        "a123",
+        "b_",
+        "c_123a",
+        "xY_z",
+        "aBC____",
+    };
+
+    for (const auto &ident : cases) {
+        SUBCASE(ident.c_str()) {
+            GIVEN("an identifier") {
+                iss << ident;
+                WHEN("the scanner's scan method is invoked") {
+                    auto symbol = scanner.scan();
+                    THEN("it should return an ident token") {
+                        REQUIRE(symbol.kind() == yy::Parser::symbol_kind::S_IDENT);
+                        auto str = symbol.value.as<std::string>();
+                        AND_THEN("the token value should match the input") {
+                            CHECK(str == ident);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+TEST_CASE("valid type names") {
+    auto iss     = std::stringstream();
+    auto oss     = std::ostringstream();
+    auto scanner = yy::Scanner("test", iss, oss);
+
+    // Cases
+    std::list<std::string> cases{
+        "Int",
+        "Bool",
+        "U64",
+        "MyClass",
+        "Maybe",
+        "Some",
+        "None",
+        "Snake_Case",
+        "ABC123",
+    };
+
+    for (const auto &ident : cases) {
+        SUBCASE(ident.c_str()) {
+            GIVEN("a type name") {
+                iss << ident;
+                WHEN("the scanner's scan method is invoked") {
+                    auto symbol = scanner.scan();
+                    THEN("it should return a type name token") {
+                        REQUIRE(symbol.kind() == yy::Parser::symbol_kind::S_TYPENAME);
+                        auto str = symbol.value.as<std::string>();
+                        AND_THEN("the token value should match the input") {
+                            CHECK(str == ident);
+                        }
+                    }
+                }
             }
         }
     }

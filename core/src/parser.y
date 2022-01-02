@@ -71,6 +71,10 @@
 %token<uint64_t>
     U64     "u64"
 
+%token<std::string>
+    IDENT       "identifier"
+    TYPENAME    "type name"
+
 %start file
 
 %%
