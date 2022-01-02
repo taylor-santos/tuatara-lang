@@ -66,7 +66,10 @@
 } // %code provides
 
 %token
-    EOF 0    "end of file"
+    EOF 0   "end of file"
+
+%token<uint64_t>
+    U64     "u64"
 
 %start file
 

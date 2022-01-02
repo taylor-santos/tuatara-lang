@@ -30,6 +30,7 @@
 
 #include <sstream>
 #include <iomanip>
+#include <algorithm>
 
 }
 
@@ -57,7 +58,26 @@ class yyFlexLexer;
     // This block is executed every time yylex() is called.
 %}
 
-[\s\n\r]+ // Ignore whitespace
+[[:digit:]]([_]*[[:digit:]]+)* {
+    try {
+        auto text = std::string(yytext);
+        text.erase(remove(text.begin(), text.end(), '_'), text.end());
+        auto ull = std::stoull(text, nullptr, 10);
+        if (ull > std::numeric_limits<uint64_t>::max()) {
+            // The c++ standard only guarantees that unsigned long long has *at least* 64 bits of precision.
+            // Make sure that the conversion to uint64_t will not overflow.
+            throw std::out_of_range("");
+        }
+        auto u64 = static_cast<uint64_t>(ull);
+        return yy::Parser::make_U64(u64, loc_);
+    } catch (const std::exception &) {
+        std::stringstream ss;
+        ss << "syntax error, " << yytext << " out of range of u64";
+        throw yy::Parser::syntax_error(loc_, ss.str());
+    }
+}
+
+[[:blank:]\n\r]+ // Ignore whitespace
 . {
     std::stringstream msg;
     msg << "stray '";

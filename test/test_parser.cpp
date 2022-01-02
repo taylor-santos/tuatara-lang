@@ -65,9 +65,9 @@ TEST_CASE("a scanner syntax error should be handled internally") {
             auto result = parser.parse();
             THEN("it should return a non-zero error code") {
                 CHECK(result != 0);
-            }
-            AND_THEN("the output stream should contain an error message") {
-                CHECK(oss.str() == "test:1:1 stray '\\200' in program\n");
+                AND_THEN("the output stream should contain an error message") {
+                    CHECK(oss.str() == "test:1:1 stray '\\200' in program\n");
+                }
             }
         }
     }
