@@ -27,5 +27,6 @@ main(int argc, char **argv) {
     auto parser  = yy::Parser(scanner);
     scanner.set_debug_level(0);
     parser.set_debug_level(0);
-    return parser.parse();
+    parser.parse();
+    return scanner.had_error();
 }

@@ -5,6 +5,8 @@
 #include "doctest/doctest.h"
 
 #include <sstream>
+#include <list>
+
 #include "scanner.hpp"
 #include "parser.hpp"
 
@@ -61,12 +63,67 @@ TEST_CASE("a scanner syntax error should be handled internally") {
     auto parser  = yy::Parser(scanner);
     GIVEN("an input containing an unrecognized character") {
         iss << "\200";
-        WHEN("the parser's parse method is invoked") {
+        WHEN("the input is parsed") {
             auto result = parser.parse();
             THEN("it should return a non-zero error code") {
                 CHECK(result != 0);
-                AND_THEN("the output stream should contain an error message") {
-                    CHECK(oss.str() == "test:1:1 stray '\\200' in program\n");
+                AND_THEN("the scanner should indicate error") {
+                    CHECK(scanner.had_error() == true);
+                    AND_THEN("the output stream should contain an error message") {
+                        CHECK(oss.str() == "test:1:1 stray '\\200' in program\n");
+                    }
+                }
+            }
+        }
+    }
+}
+
+TEST_CASE("valid expressions") {
+    auto iss     = std::stringstream();
+    auto oss     = std::ostringstream();
+    auto scanner = yy::Scanner("test", iss, oss);
+    auto parser  = yy::Parser(scanner);
+
+    std::list cases{
+        "foo :: Int;",
+        "foo := 123;",
+    };
+
+    for (auto &input : cases) {
+        SUBCASE(input) {
+            GIVEN("an input containing a valid expression") {
+                iss << input;
+                WHEN("the input is parsed") {
+                    auto result = parser.parse();
+                    THEN("the scanner should indicate success") {
+                        CHECK(scanner.had_error() == false);
+                        AND_THEN("the output stream should be empty") {
+                            CHECK(oss.str() == "");
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+TEST_CASE("expression error handling") {
+    auto iss     = std::stringstream();
+    auto oss     = std::ostringstream();
+    auto scanner = yy::Scanner("test", iss, oss);
+    auto parser  = yy::Parser(scanner);
+
+    GIVEN("an input with more than one syntax error") {
+        iss << "foo := Int;\nbar :: 123;";
+        WHEN("the input is parsed") {
+            parser.parse();
+            THEN("both errors are reported") {
+                CHECK(
+                    oss.str() ==
+                    "test:1:8 syntax error, unexpected type name, expecting u64 or identifier\n"
+                    "test:2:8 syntax error, unexpected u64, expecting type name\n");
+                AND_THEN("the scanner should indicate failure") {
+                    CHECK(scanner.had_error() == true);
                 }
             }
         }
