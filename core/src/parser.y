@@ -65,8 +65,12 @@
 
 } // %code provides
 
+/* TOKENS */
 %token
-    EOF 0   "end of file"
+    EOF 0       "end of file"
+    SEMICOLON   ";"
+    TYPE_DECL   "::"
+    DEFINE      ":="
 
 %token<uint64_t>
     U64     "u64"
@@ -81,6 +85,31 @@
 
 file
     : %empty {}
+    | expressions {}
+
+expressions
+    : expression ";" {}
+    | expressions expression ";" {}
+
+expression
+    : definition {}
+    | simple_expression {}
+
+definition
+    : "identifier" ":=" expression {}
+    | "identifier" "::" type {}
+
+simple_expression
+    : literal {}
+    | "identifier" {}
+    | error {}
+
+literal
+    : "u64" {}
+
+type
+    : "type name" {}
+    | error {}
 
 %%
 
@@ -90,7 +119,7 @@ namespace yy {
 
 void
 Parser::error(const location &loc, const std::string &message) {
-    scanner.error(loc, message);
+    scanner.report_error(loc, message);
 }
 
 }

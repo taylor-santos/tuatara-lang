@@ -68,28 +68,67 @@ TEST_CASE("white space should be ignored") {
     }
 }
 
+TEST_CASE("line numbers should be properly tracked") {
+    auto iss     = std::stringstream();
+    auto oss     = std::ostringstream();
+    auto scanner = yy::Scanner("test", iss, oss);
+
+    std::list cases{
+        std::pair{"CR", "foo\rbar\r\rbaz"},
+        {"LF", "foo\nbar\n\nbaz"},
+        {"CRLF", "foo\r\nbar\r\n\r\nbaz"},
+    };
+
+    for (auto &[name, input] : cases) {
+        SUBCASE(name) {
+            GIVEN("an input with line breaks") {
+                iss << input;
+                WHEN("the scanner's scan method is invoked") {
+                    auto foo = scanner.scan();
+                    auto bar = scanner.scan();
+                    auto baz = scanner.scan();
+                    THEN("the proper line numbers are recorded") {
+                        CHECK(foo.location.begin.line == 1);
+                        CHECK(foo.location.begin.column == 1);
+                        CHECK(foo.location.end.line == 1);
+                        CHECK(foo.location.end.column == 4);
+                        CHECK(bar.location.begin.line == 2);
+                        CHECK(bar.location.begin.column == 1);
+                        CHECK(bar.location.end.line == 2);
+                        CHECK(bar.location.end.column == 4);
+                        CHECK(baz.location.begin.line == 4);
+                        CHECK(baz.location.begin.column == 1);
+                        CHECK(baz.location.end.line == 4);
+                        CHECK(baz.location.end.column == 4);
+                    }
+                }
+            }
+        }
+    }
+}
+
 TEST_CASE("u64 ints should be tokenized correctly") {
     auto iss     = std::stringstream();
     auto oss     = std::ostringstream();
     auto scanner = yy::Scanner("test", iss, oss);
 
     // Cases
-    std::list<std::pair<std::string, uint64_t>> cases{
-        {"0", 0u},
-        {"1", 1u},
-        {"23", 23u},
-        {"2_3", 23u},
-        {"1234", 1234u},
-        {"1_234", 1234u},
-        {"1_2__3_4", 1234u},
-        {"9876543210", 9876543210u},
-        {"9_876_543_210", 9876543210u},
-        {"18446744073709551615", 18446744073709551615u},
-        {"18_446_744_073_709_551_615", 18446744073709551615u},
+    std::list cases{
+        std::pair{"0", 0ull},
+        {"1", 1ull},
+        {"23", 23ull},
+        {"2_3", 23ull},
+        {"1234", 1234ull},
+        {"1_234", 1234ull},
+        {"1_2__3_4", 1234ull},
+        {"9876543210", 9876543210ull},
+        {"9_876_543_210", 9876543210ull},
+        {"18446744073709551615", 18446744073709551615ull},
+        {"18_446_744_073_709_551_615", 18446744073709551615ull},
     };
 
     for (auto &[str, val] : cases) {
-        SUBCASE(str.c_str()) {
+        SUBCASE(str) {
             GIVEN("an int literal") {
                 iss << str;
                 WHEN("the scanner's scan method is invoked") {
@@ -130,7 +169,7 @@ TEST_CASE("valid identifiers") {
     auto scanner = yy::Scanner("test", iss, oss);
 
     // Cases
-    std::list<std::string> cases{
+    std::list cases{
         "a",
         "abc",
         "aBcDe",
@@ -142,7 +181,7 @@ TEST_CASE("valid identifiers") {
     };
 
     for (const auto &ident : cases) {
-        SUBCASE(ident.c_str()) {
+        SUBCASE(ident) {
             GIVEN("an identifier") {
                 iss << ident;
                 WHEN("the scanner's scan method is invoked") {
@@ -166,7 +205,7 @@ TEST_CASE("valid type names") {
     auto scanner = yy::Scanner("test", iss, oss);
 
     // Cases
-    std::list<std::string> cases{
+    std::list cases{
         "Int",
         "Bool",
         "U64",
@@ -179,7 +218,7 @@ TEST_CASE("valid type names") {
     };
 
     for (const auto &ident : cases) {
-        SUBCASE(ident.c_str()) {
+        SUBCASE(ident) {
             GIVEN("a type name") {
                 iss << ident;
                 WHEN("the scanner's scan method is invoked") {

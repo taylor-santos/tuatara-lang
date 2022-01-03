@@ -50,6 +50,12 @@ class yyFlexLexer;
     loc_.columns(yyleng);                                                                                               \
 }
 
+static yy::Parser::symbol_type
+lex_int(const char *yytext, yy::location loc);
+
+static void
+throw_unrecognized_char(char c, yy::location loc);
+
 %}
 
 ident_start    [a-z]
@@ -62,53 +68,61 @@ ident          [_0-9a-zA-Z]
     // This block is executed every time yylex() is called.
 %}
 
-[[:digit:]]([_]*[[:digit:]]+)* {
-    try {
-        auto text = std::string(yytext);
-        text.erase(remove(text.begin(), text.end(), '_'), text.end());
-        auto ull = std::stoull(text, nullptr, 10);
-        if (ull > std::numeric_limits<uint64_t>::max()) {
-            // The c++ standard only guarantees that unsigned long long has *at least* 64 bits of precision.
-            // Make sure that the conversion to uint64_t will not overflow.
-            throw std::out_of_range("");
-        }
-        auto u64 = static_cast<uint64_t>(ull);
-        return yy::Parser::make_U64(u64, loc_);
-    } catch (const std::exception &) {
-        std::stringstream ss;
-        ss << "syntax error, " << yytext << " out of range of u64";
-        throw yy::Parser::syntax_error(loc_, ss.str());
-    }
-}
+[\r]?[\n]?      { loc_.lines(1); }
+[[:blank:]]+    { /* Ignore whitespace */ }
 
-{ident_start}{ident}*    { return yy::Parser::make_IDENT(yytext, loc_); }
-{typename_start}{ident}* { return yy::Parser::make_TYPENAME(yytext, loc_); }
+[[:digit:]]([_]*[[:digit:]]+)*  { return lex_int(yytext, loc_); }
 
-[[:blank:]\n\r]+ // Ignore whitespace
-. {
-    std::stringstream msg;
-    msg << "stray '";
-    if (*yytext >= 0 && std::isprint(*yytext)) {
-        msg << *yytext;
-    } else {
-        // We want to print the character (which is a signed char) as its octal value.
-        // Casting directly to unsigned int incorrectly handles negative values:
-        // For example, (char)-1 == 0xff == 255, but (unsigned int)-1 == 0xffffffff == 4294967295.
-        // By first casting char to unsigned char, the number of set bits is preserved but the sign is changed.
-        // Just casting to uint8_t also doesn't work, because the stringstream just treats it as char
-        msg << '\\' << std::setfill('0') << std::setw(3) << std::right << std::oct;
-        msg << static_cast<int>(static_cast<unsigned char>(*yytext));
-    }
-    msg << "' in program";
-    throw yy::Parser::syntax_error(loc_, msg.str());
-}
-<<EOF>> {
-    return yy::Parser::make_EOF(loc_);
-}
+{ident_start}{ident}*       { return yy::Parser::make_IDENT(yytext, loc_); }
+{typename_start}{ident}*    { return yy::Parser::make_TYPENAME(yytext, loc_); }
+
+;   { return yy::Parser::make_SEMICOLON(loc_); }
+::  { return yy::Parser::make_TYPE_DECL(loc_); }
+:=  { return yy::Parser::make_DEFINE(loc_); }
+
+.       { throw_unrecognized_char(*yytext, loc_); }
+<<EOF>> { return yy::Parser::make_EOF(loc_); }
 
 %%
 
 // This block is inserted at the bottom of scanner.cpp
+
+static yy::Parser::symbol_type
+lex_int(const char *yytext, yy::location loc) {
+    try {
+        auto text = std::string(yytext);
+        text.erase(remove(text.begin(), text.end(), '_'), text.end());
+        auto ull = std::stoull(text, nullptr, 10);
+        if (ull <= std::numeric_limits<uint64_t>::max()) {
+            // The c++ standard only guarantees that unsigned long long has *at least* 64 bits of precision.
+            // Make sure that the conversion to uint64_t will not overflow.
+            auto u64 = static_cast<uint64_t>(ull);
+            return yy::Parser::make_U64(u64, loc);
+        }
+    } catch (...) {}
+    std::stringstream ss;
+    ss << "syntax error, " << yytext << " out of range of u64";
+    throw yy::Parser::syntax_error(loc, ss.str());
+}
+
+static void
+throw_unrecognized_char(char c, yy::location loc) {
+    std::stringstream msg;
+        msg << "stray '";
+        if (c >= 0 && std::isprint(c)) {
+            msg << c;
+        } else {
+            // We want to print the character (which is a signed char) as its octal value.
+            // Casting directly to unsigned int incorrectly handles negative values:
+            // For example, (char)-1 == 0xff == 255, but (unsigned int)-1 == 0xffffffff == 4294967295.
+            // By first casting char to unsigned char, the number of set bits is preserved but the sign is changed.
+            // Just casting to uint8_t also doesn't work, because the stringstream just treats it as char
+            msg << '\\' << std::setfill('0') << std::setw(3) << std::right << std::oct;
+            msg << static_cast<int>(static_cast<unsigned char>(c));
+        }
+        msg << "' in program";
+        throw yy::Parser::syntax_error(loc, msg.str());
+}
 
 namespace yy {
 
@@ -129,9 +143,15 @@ Scanner::set_debug_level(int l) {
 }
 
 void
-Scanner::error(const location &loc, const std::string &message) const {
+Scanner::report_error(const location &loc, const std::string &message) {
     if (loc.begin.filename) output_ << "" << *loc.begin.filename << ":";
     output_ << loc.begin.line << ":" << loc.begin.column << " " << message << std::endl;
+    error_ = true;
+}
+
+bool
+Scanner::had_error() const {
+    return error_;
 }
 
 } // namespace yy

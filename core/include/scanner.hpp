@@ -33,13 +33,17 @@ public:
     scan();
 
     void
-    error(const location &loc, const std::string &message) const;
+    report_error(const location &loc, const std::string &message);
+
+    [[nodiscard]] bool
+    had_error() const;
 
 private:
     location      loc_;
     std::string   path_;
     std::istream &input_;
     std::ostream &output_;
+    bool          error_ = false;
 };
 
 } // namespace yy
