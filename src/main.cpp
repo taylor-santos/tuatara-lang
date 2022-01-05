@@ -6,6 +6,7 @@
 #include <fstream>
 
 #include "scanner.hpp"
+#include "ast/expression.hpp"
 
 int
 main(int argc, char **argv) {
@@ -23,10 +24,20 @@ main(int argc, char **argv) {
         return 1;
     }
     auto path    = std::filesystem::relative(argv[1]);
-    auto scanner = yy::Scanner(path.string(), input, std::cerr);
-    auto parser  = yy::Parser(scanner);
+    auto scanner = yy::Scanner(path.string(), input);
+    auto ast     = std::vector<std::unique_ptr<AST::Expression>>();
+    auto failed  = false;
+    auto parser  = yy::Parser(scanner, std::cerr, ast, failed);
     scanner.set_debug_level(0);
     parser.set_debug_level(0);
     parser.parse();
-    return scanner.had_error();
+    std::cout << "[";
+    std::string sep;
+    for (const auto &expr : ast) {
+        std::cout << sep;
+        sep = ",";
+        expr->to_json(std::cout);
+    }
+    std::cout << "]";
+    return failed;
 }

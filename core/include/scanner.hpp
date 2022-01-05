@@ -19,7 +19,7 @@ namespace yy {
 
 class Scanner : public yyFlexLexer {
 public:
-    Scanner(std::string path, std::istream &input, std::ostream &output);
+    Scanner(std::string path, std::istream &input);
     ~Scanner() override;
 
     Scanner(const Scanner &) = delete;
@@ -32,18 +32,10 @@ public:
     virtual Parser::symbol_type
     scan();
 
-    void
-    report_error(const location &loc, const std::string &message);
-
-    [[nodiscard]] bool
-    had_error() const;
-
 private:
     location      loc_;
     std::string   path_;
     std::istream &input_;
-    std::ostream &output_;
-    bool          error_ = false;
 };
 
 } // namespace yy

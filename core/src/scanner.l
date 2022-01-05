@@ -126,13 +126,12 @@ throw_unrecognized_char(char c, yy::location loc) {
 
 namespace yy {
 
-Scanner::Scanner(std::string path, std::istream &input, std::ostream &output)
+Scanner::Scanner(std::string path, std::istream &input)
     : yyFlexLexer()
     , path_{std::move(path)}
-    , input_{input}
-    , output_{output} {
+    , input_{input} {
     loc_.initialize(&path_);
-    switch_streams(input_, output_);
+    switch_streams(&input_);
 }
 
 Scanner::~Scanner() = default;
@@ -140,18 +139,6 @@ Scanner::~Scanner() = default;
 void
 Scanner::set_debug_level(int l) {
     yy_flex_debug = l;
-}
-
-void
-Scanner::report_error(const location &loc, const std::string &message) {
-    if (loc.begin.filename) output_ << "" << *loc.begin.filename << ":";
-    output_ << loc.begin.line << ":" << loc.begin.column << " " << message << std::endl;
-    error_ = true;
-}
-
-bool
-Scanner::had_error() const {
-    return error_;
 }
 
 } // namespace yy

@@ -3,12 +3,15 @@
 %locations
 %defines
 %parse-param {class Scanner &scanner}
+%parse-param {std::ostream &output}
+%parse-param {std::vector<std::unique_ptr<AST::Expression>> &ast_out}
+%parse-param {bool &parse_failure}
 
 %define api.namespace {yy}
 %define api.parser.class {Parser}
 %define api.token.constructor
 %define api.value.type variant
-/* %define api.value.automove // TODO: Uncomment this when AST is implemented */
+%define api.value.automove
 %define parse.assert
 %define parse.trace
 %define parse.error verbose
@@ -33,6 +36,8 @@
 
 #define yylex scanner.scan
 
+#define NODE(type, ...) std::make_unique<AST:: type>(__VA_ARGS__)
+
 %}
 
 %code requires {
@@ -50,6 +55,8 @@
      )
 #endif
 
+#include "ast/ast_includes.hpp"
+
 } // %code requires
 
 %code provides {
@@ -65,6 +72,11 @@
 
 } // %code provides
 
+%initial-action {
+    // Invoked before parsing each time parse() is called.
+    parse_failure = false;
+}
+
 /* TOKENS */
 %token
     EOF 0       "end of file"
@@ -79,37 +91,86 @@
     IDENT       "identifier"
     TYPENAME    "type name"
 
+%type<std::vector<std::unique_ptr<AST::Expression>>>
+    expressions
+
+%type<std::unique_ptr<AST::Expression>>
+    expression
+
+%type<std::unique_ptr<AST::Definition>>
+    definition
+
+%type<std::unique_ptr<AST::SimpleExpression>>
+    simple_expression
+
+%type<std::unique_ptr<AST::Literal>>
+    literal
+
+%type<std::unique_ptr<AST::Type>>
+    type
+
+
 %start file
 
 %%
 
 file
-    : %empty {}
-    | expressions {}
+    : %empty {
+        ast_out.clear();
+    }
+    | expressions {
+        ast_out = $1;
+        if (parse_failure) YYABORT;
+    }
 
 expressions
-    : expression ";" {}
-    | expressions expression ";" {}
+    : expression ";" {
+        $$.emplace_back($1);
+    }
+    | expressions expression ";" {
+        $$ = $1;
+        $$.emplace_back($2);
+    }
 
 expression
-    : definition {}
-    | simple_expression {}
+    : definition {
+        $$ = $1;
+    }
+    | simple_expression {
+        $$ = $1;
+    }
 
 definition
-    : "identifier" ":=" expression {}
-    | "identifier" "::" type {}
+    : "identifier" ":=" expression {
+        $$ = NODE(ValueDefinition, $1, @1, $3, @$);
+    }
+    | "identifier" "::" type {
+        $$ = NODE(TypeDefinition, $1, @1, $3, @$);
+    }
 
 simple_expression
-    : literal {}
-    | "identifier" {}
-    | error {}
+    : literal {
+        $$ = $1;
+    }
+    | "identifier" {
+        $$ = NODE(Variable, $1, @$);
+    }
+    | error {
+        $$ = NODE(Error, @$);
+    }
 
 literal
-    : "u64" {}
+    : "u64" {
+        $$ = NODE(U64, $1, @$);
+    }
 
 type
-    : "type name" {}
-    | error {}
+    : "type name" {
+        $$ = NODE(ObjectType, $1, @1, @$);
+    }
+    | error {
+        $$ = NODE(Error, @$);
+    }
 
 %%
 
@@ -119,7 +180,9 @@ namespace yy {
 
 void
 Parser::error(const location &loc, const std::string &message) {
-    scanner.report_error(loc, message);
+    if (loc.begin.filename) output << "" << *loc.begin.filename << ":";
+    output << loc.begin.line << ":" << loc.begin.column << " " << message << std::endl;
+    parse_failure = true;
 }
 
 }
