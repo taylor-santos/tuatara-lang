@@ -1,5 +1,18 @@
 # Add non-main source files here
-set(CORE_SOURCES)
+set(CORE_SOURCES
+        ast/ast.cpp
+        ast/expression.cpp
+        ast/definition.cpp
+        ast/value_definition.cpp
+        ast/type_definition.cpp
+        ast/simple_expression.cpp
+        ast/literal.cpp
+        ast/u64.cpp
+        ast/variable.cpp
+        ast/type.cpp
+        ast/object_type.cpp
+        ast/error.cpp
+        json.cpp)
 
 set(CMAKE_FIND_USE_PACKAGE_ROOT_PATH ON)
 find_package(FLEX 2.6.4
@@ -36,6 +49,8 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_
 endif ()
 
 if (MSVC)
+    target_compile_options(core
+            PUBLIC /Zc:__cplusplus) # Bison checks the __cplusplus macro to enable std::move
     target_compile_definitions(core
             PRIVATE _CRT_SECURE_NO_WARNINGS)
 else ()
