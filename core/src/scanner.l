@@ -28,39 +28,56 @@
      )
 #endif
 
-#include <sstream>
-#include <iomanip>
-#include <algorithm>
-
 }
 
 %{
 // This block is inserted in the definitions section of scanner.cpp
 
-#include "scanner.hpp"
+#include <sstream>
+#include <iomanip>
+#include <algorithm>
 
-class yyFlexLexer;
+#include "scanner.hpp"
+#include "str_to_int.hpp"
 
 #define LINE() {                                                                                                       \
     loc.lines(1);                                                                                                      \
 }
 
 #define YY_USER_ACTION {                                                                                               \
-    loc_.step();                                                                                                        \
-    loc_.columns(yyleng);                                                                                               \
+    loc_.step();                                                                                                       \
+    loc_.columns(yyleng);                                                                                              \
 }
 
-static yy::Parser::symbol_type
-lex_int(const char *yytext, yy::location loc);
+#define LEX_INT(STR, LOC)                                                                              \
+    do {                                                                                                               \
+        auto text = std::string((STR));                                                                                \
+        text.erase(remove(text.begin(), text.end(), '_'), text.end());                                                 \
+        auto end = text.find_first_of("uUiI");                                                                         \
+        if (end != std::string::npos) text = text.substr(0, end);                                                      \
+        TYPE u;                                                                                                        \
+        if (str_to_int(text, &u, (BASE))) {                                                                            \
+            throw_int_out_of_range<TYPE>(text, (LOC));                                                                 \
+        }                                                                                                              \
+        return yy::Parser::make_INT(u, (LOC));                                                                         \
+    } while (0)
 
 static void
 throw_unrecognized_char(char c, yy::location loc);
 
+static yy::Parser::symbol_type
+lex_int(const char *text, yy::location loc);
+
 %}
 
-ident_start    [a-z]
-typename_start [A-Z]
-ident          [_0-9a-zA-Z]
+ident_start     [a-z]
+typename_start  [A-Z]
+ident           [_0-9a-zA-Z]
+dec_int         0[dD][0-9_]*[0-9]
+hex_int         0[xX][0-9a-fA-F_]*[0-9a-fA-F]
+oct_int         0[oO][0-7_]*[0-7]
+bin_int         0[bB][01_]*[01]
+int_suffix      (_?[iIuU](8|16|32|64))
 
 %%
 
@@ -71,7 +88,7 @@ ident          [_0-9a-zA-Z]
 [\r]?[\n]?      { loc_.lines(1); }
 [[:blank:]]+    { /* Ignore whitespace */ }
 
-[[:digit:]]([_]*[[:digit:]]+)*  { return lex_int(yytext, loc_); }
+([0-9]+|{bin_int}|{oct_int}|{dec_int}|{hex_int}){int_suffix}?   { return lex_int(yytext, loc_); }
 
 {ident_start}{ident}*       { return yy::Parser::make_IDENT(yytext, loc_); }
 {typename_start}{ident}*    { return yy::Parser::make_TYPENAME(yytext, loc_); }
@@ -80,30 +97,15 @@ ident          [_0-9a-zA-Z]
 ::  { return yy::Parser::make_TYPE_DECL(loc_); }
 :=  { return yy::Parser::make_DEFINE(loc_); }
 
+[+] { return yy::Parser::make_PLUS(loc_);  }
+[-] { return yy::Parser::make_MINUS(loc_); }
+
 .       { throw_unrecognized_char(*yytext, loc_); }
 <<EOF>> { return yy::Parser::make_EOF(loc_); }
 
 %%
 
 // This block is inserted at the bottom of scanner.cpp
-
-static yy::Parser::symbol_type
-lex_int(const char *yytext, yy::location loc) {
-    try {
-        auto text = std::string(yytext);
-        text.erase(remove(text.begin(), text.end(), '_'), text.end());
-        auto ull = std::stoull(text, nullptr, 10);
-        if (ull <= std::numeric_limits<uint64_t>::max()) {
-            // The c++ standard only guarantees that unsigned long long has *at least* 64 bits of precision.
-            // Make sure that the conversion to uint64_t will not overflow.
-            auto u64 = static_cast<uint64_t>(ull);
-            return yy::Parser::make_U64(u64, loc);
-        }
-    } catch (...) {}
-    std::stringstream ss;
-    ss << "syntax error, " << yytext << " out of range of u64";
-    throw yy::Parser::syntax_error(loc, ss.str());
-}
 
 static void
 throw_unrecognized_char(char c, yy::location loc) {
@@ -122,6 +124,54 @@ throw_unrecognized_char(char c, yy::location loc) {
         }
         msg << "' in program";
         throw yy::Parser::syntax_error(loc, msg.str());
+}
+
+static yy::Parser::symbol_type
+lex_int(const char *text, yy::location loc) {
+    auto base = 10;
+    auto str  = std::string(text);
+    str.erase(remove(str.begin(), str.end(), '_'), str.end());
+    if (str.size() > 2 && str[0] == '0') {
+        // Parse base
+        switch (str[1]) {
+            case 'b': case 'B':
+                base = 2;
+                str = str.substr(2);
+                break;
+            case 'o': case 'O':
+                base = 8;
+                str = str.substr(2);
+                break;
+            case 'd': case 'D':
+                base = 10;
+                str = str.substr(2);
+                break;
+            case 'x': case 'X':
+                base = 16;
+                str = str.substr(2);
+                break;
+            default: break;
+        }
+    }
+    std::string suffix;
+    auto end = str.find_first_of("uUiI");
+    if (end != std::string::npos) {
+        suffix = str.substr(end);
+        str = str.substr(0, end);
+    }
+    int_variant result;
+    if (suffix == "" || suffix == "u64") {
+        result = uint64_t();
+    } else if (suffix == "i64") {
+    }
+    std::visit([&](auto &&val) {
+        if (str_to_int(str, val, base)) {
+
+        }
+    },
+    result);
+
+    return yy::Parser::make_INT(result, loc);
 }
 
 namespace yy {

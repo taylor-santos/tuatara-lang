@@ -36,6 +36,11 @@ private:
     location      loc_;
     std::string   path_;
     std::istream &input_;
+
+    std::string int_str_;
+    enum class Base { DEC, HEX, OCT, BIN } int_base_ = Base::DEC;
+    enum class Size { _64, _32, _16, _8 } int_size_  = Size::_64;
+    bool int_signed_                                 = false;
 };
 
 } // namespace yy

@@ -1,4 +1,4 @@
- %require "3.7"
+%require "3.7"
 %language "C++"
 %locations
 %defines
@@ -38,6 +38,65 @@
 
 #define NODE(type, ...) std::make_unique<AST:: type>(__VA_ARGS__)
 
+template<typename T>
+void
+throw_int_out_of_range(std::string val, yy::location loc) {
+    std::stringstream ss;
+    ss << "syntax error, " << val << " out of range of " << AST::Int<T>::type_name << " (";
+    if constexpr (std::is_signed_v<T>) {
+        ss << static_cast<int64_t>(std::numeric_limits<T>::min()) << " to "
+           << static_cast<int64_t>(std::numeric_limits<T>::max());
+    } else {
+        ss << static_cast<uint64_t>(std::numeric_limits<T>::min()) << " to "
+           << static_cast<uint64_t>(std::numeric_limits<T>::max());
+    }
+    ss << ")";
+    throw yy::Parser::syntax_error(loc, ss.str());
+}
+
+template<bool negate, typename T>
+void
+throw_int_out_of_range(T val, yy::location loc) {
+    std::stringstream ss;
+    ss << (negate ? "-" : "");
+    if constexpr (std::is_signed_v<T>) {
+        ss << static_cast<int64_t>(val);
+    } else {
+        ss << static_cast<uint64_t>(val);
+    }
+    throw_int_out_of_range<T>(ss.str(), loc);
+}
+
+template <bool negate>
+std::unique_ptr<AST::Literal>
+make_signed(int_variant &&var, yy::location loc) {
+    return std::visit([&](auto &&val) -> std::unique_ptr<AST::Literal> {
+        using T = std::decay_t<decltype(val)>;
+        if constexpr (std::is_signed_v<T>) {
+            if constexpr (negate) {
+                static_assert(std::numeric_limits<T>::min() + 1 == -std::numeric_limits<T>::max());
+                if (val == std::numeric_limits<T>::min()) {
+                    throw_int_out_of_range<negate>(val, loc);
+                }
+                val = -val;
+            }
+            return std::make_unique<AST::Int<T>>(val, loc);
+        } else { // Unsigned
+            using S = typename std::make_signed<T>::type;
+            S sval = val;
+            T max  = std::numeric_limits<S>::max();
+            if constexpr (negate) {
+                max++;
+                sval = (~sval) + 1;
+            }
+            if (val > max) {
+                throw_int_out_of_range<negate>(val, loc);
+            }
+            return std::make_unique<AST::Int<S>>(sval, loc);
+        }
+    }, var);
+}
+
 %}
 
 %code requires {
@@ -55,7 +114,19 @@
      )
 #endif
 
+#include <variant>
+
 #include "ast/ast_includes.hpp"
+
+using int_variant = std::variant<uint64_t, int64_t, uint32_t, int32_t, uint16_t, int16_t, uint8_t, int8_t>;
+
+template<typename T>
+void
+throw_int_out_of_range(std::string val, yy::location loc);
+
+template<bool negate, typename T>
+void
+throw_int_out_of_range(T val, yy::location loc);
 
 } // %code requires
 
@@ -83,13 +154,15 @@
     SEMICOLON   ";"
     TYPE_DECL   "::"
     DEFINE      ":="
-
-%token<uint64_t>
-    U64     "u64"
+    PLUS        "+"
+    MINUS       "-"
 
 %token<std::string>
     IDENT       "identifier"
     TYPENAME    "type name"
+
+%token<int_variant>
+    INT     "int literal"
 
 %type<std::vector<std::unique_ptr<AST::Expression>>>
     expressions
@@ -160,8 +233,20 @@ simple_expression
     }
 
 literal
-    : "u64" {
-        $$ = NODE(U64, $1, @$);
+    : "int literal" {
+        std::visit(
+            [&](auto &&val) {
+                using T = std::decay_t<decltype(val)>;
+                $$ = std::make_unique<AST::Int<T>>(val, @$);
+            },
+            $1
+        );
+    }
+    | "+" "int literal" {
+        $$ = make_signed<false>($2, @$);
+    }
+    | "-" "int literal" {
+        $$ = make_signed<true>($2, @$);
     }
 
 type

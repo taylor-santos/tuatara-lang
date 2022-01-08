@@ -7,6 +7,6 @@
 #include "ast/type_definition.hpp"
 #include "ast/value_definition.hpp"
 #include "ast/variable.hpp"
-#include "ast/u64.hpp"
+#include "ast/int.hpp"
 #include "ast/object_type.hpp"
 #include "ast/error.hpp"

@@ -8,16 +8,20 @@
 
 namespace AST {
 
-class U64 final : public Literal {
+template<typename T>
+class Int final : public Literal {
 public:
-    U64(uint64_t value, const yy::location &loc);
-    ~U64() override;
+    Int(T value, const yy::location &loc);
+    ~Int() override;
 
     void
     to_json(std::ostream &os) const override;
 
+public:
+    static const char *type_name;
+
 private:
-    uint64_t value_;
+    T value_;
 };
 
 } // namespace AST

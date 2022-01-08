@@ -7,6 +7,7 @@
 
 #include "scanner.hpp"
 #include "ast/expression.hpp"
+#include "ast/int.hpp"
 
 int
 main(int argc, char **argv) {
@@ -28,7 +29,7 @@ main(int argc, char **argv) {
     auto ast     = std::vector<std::unique_ptr<AST::Expression>>();
     auto failed  = false;
     auto parser  = yy::Parser(scanner, std::cerr, ast, failed);
-    scanner.set_debug_level(0);
+    scanner.set_debug_level(1);
     parser.set_debug_level(0);
     parser.parse();
     std::cout << "[";
