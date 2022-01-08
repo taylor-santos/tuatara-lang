@@ -7,7 +7,7 @@ set(CORE_SOURCES
         ast/type_definition.cpp
         ast/simple_expression.cpp
         ast/literal.cpp
-        ast/u64.cpp
+        ast/int.cpp
         ast/variable.cpp
         ast/type.cpp
         ast/object_type.cpp

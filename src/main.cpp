@@ -4,9 +4,11 @@
 
 #include <iostream>
 #include <fstream>
+#include <cstring>
 
 #include "scanner.hpp"
 #include "ast/expression.hpp"
+#include "ast/int.hpp"
 
 int
 main(int argc, char **argv) {
@@ -19,8 +21,8 @@ main(int argc, char **argv) {
     input.exceptions(std::ios::badbit | std::ios::failbit);
     try {
         input.open(argv[1]);
-    } catch (std::ios_base::failure &e) {
-        std::cerr << e.what() << std::endl;
+    } catch (std::ios_base::failure &) {
+        std::cerr << argv[1] << ": " << std::strerror(errno) << std::endl;
         return 1;
     }
     auto path    = std::filesystem::relative(argv[1]);

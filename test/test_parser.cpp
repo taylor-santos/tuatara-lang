@@ -97,7 +97,7 @@ TEST_CASE("valid expressions") {
         {"foo :: Int;",
          {R"({"node":"type definition","location":{"begin":{"filename":"test","line":1,"column":1},"end":{"filename":"test","line":1,"column":11}},"name":"foo","name location":{"begin":{"filename":"test","line":1,"column":1},"end":{"filename":"test","line":1,"column":4}},"type":{"node":"object type","location":{"begin":{"filename":"test","line":1,"column":8},"end":{"filename":"test","line":1,"column":11}},"class":"Int","name location":{"begin":{"filename":"test","line":1,"column":8},"end":{"filename":"test","line":1,"column":11}}}})"}},
         {"foo := 123;",
-         {R"({"node":"value definition","location":{"begin":{"filename":"test","line":1,"column":1},"end":{"filename":"test","line":1,"column":11}},"name":"foo","name location":{"begin":{"filename":"test","line":1,"column":1},"end":{"filename":"test","line":1,"column":4}},"value":{"node":"u64","location":{"begin":{"filename":"test","line":1,"column":8},"end":{"filename":"test","line":1,"column":11}},"value":"123"}})"}},
+         {R"({"node":"value definition","location":{"begin":{"filename":"test","line":1,"column":1},"end":{"filename":"test","line":1,"column":11}},"name":"foo","name location":{"begin":{"filename":"test","line":1,"column":1},"end":{"filename":"test","line":1,"column":4}},"value":{"node":"U64","location":{"begin":{"filename":"test","line":1,"column":8},"end":{"filename":"test","line":1,"column":11}},"value":123}})"}},
         {"foo := bar;",
          {R"({"node":"value definition","location":{"begin":{"filename":"test","line":1,"column":1},"end":{"filename":"test","line":1,"column":11}},"name":"foo","name location":{"begin":{"filename":"test","line":1,"column":1},"end":{"filename":"test","line":1,"column":4}},"value":{"node":"variable","location":{"begin":{"filename":"test","line":1,"column":8},"end":{"filename":"test","line":1,"column":11}},"name":"bar"}})"}},
     };
@@ -141,13 +141,14 @@ TEST_CASE("expression error handling") {
     auto failed  = false;
     auto parser  = yy::Parser(scanner, oss, ast, failed);
 
+    auto input        = "foo := Int;\nbar :: 123;";
     auto json_outputs = std::vector<std::string>{
         R"({"node":"error","location":{"begin":{"filename":"test","line":1,"column":1},"end":{"filename":"test","line":1,"column":11}}})",
         R"({"node":"error","location":{"begin":{"filename":"test","line":2,"column":1},"end":{"filename":"test","line":2,"column":11}}})",
     };
 
     GIVEN("an input with more than one syntax error") {
-        iss << "foo := Int;\nbar :: 123;";
+        iss << input;
         WHEN("the input is parsed") {
             auto result = parser.parse();
             THEN("an error code is returned") {
@@ -156,15 +157,16 @@ TEST_CASE("expression error handling") {
                 AND_THEN("both errors are reported") {
                     CHECK(
                         oss.str() ==
-                        "test:1:8 syntax error, unexpected type name, expecting u64 or identifier\n"
-                        "test:2:8 syntax error, unexpected u64, expecting type name\n");
+                        "test:1:8 syntax error, unexpected type name, expecting + or - or "
+                        "identifier or int literal\n"
+                        "test:2:8 syntax error, unexpected int literal, expecting type name\n");
                     AND_THEN("the produced ast should match the expected output") {
                         auto n = json_outputs.size();
                         REQUIRE(ast.size() == n);
                         for (size_t i = 0; i < n; i++) {
                             std::ostringstream out;
                             ast[i]->to_json(out);
-                            CHECK(out.str() == json_outputs[i]);
+                            CHECK(json_outputs[i] == out.str());
                         }
                         AND_THEN("the error flag should be true") {
                             CHECK(failed == true);
