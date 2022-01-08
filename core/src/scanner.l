@@ -49,22 +49,10 @@
     loc_.columns(yyleng);                                                                                              \
 }
 
-#define LEX_INT(STR, LOC)                                                                              \
-    do {                                                                                                               \
-        auto text = std::string((STR));                                                                                \
-        text.erase(remove(text.begin(), text.end(), '_'), text.end());                                                 \
-        auto end = text.find_first_of("uUiI");                                                                         \
-        if (end != std::string::npos) text = text.substr(0, end);                                                      \
-        TYPE u;                                                                                                        \
-        if (str_to_int(text, &u, (BASE))) {                                                                            \
-            throw_int_out_of_range<TYPE>(text, (LOC));                                                                 \
-        }                                                                                                              \
-        return yy::Parser::make_INT(u, (LOC));                                                                         \
-    } while (0)
+static std::string
+unrecognized_char(char c);
 
-static void
-throw_unrecognized_char(char c, yy::location loc);
-
+template<typename T>
 static yy::Parser::symbol_type
 lex_int(const char *text, yy::location loc);
 
@@ -73,7 +61,7 @@ lex_int(const char *text, yy::location loc);
 ident_start     [a-z]
 typename_start  [A-Z]
 ident           [_0-9a-zA-Z]
-dec_int         0[dD][0-9_]*[0-9]
+dec_int         0[dD][0-9_]*[0-9]|[0-9]([0-9_]*[0-9])?
 hex_int         0[xX][0-9a-fA-F_]*[0-9a-fA-F]
 oct_int         0[oO][0-7_]*[0-7]
 bin_int         0[bB][01_]*[01]
@@ -88,7 +76,14 @@ int_suffix      (_?[iIuU](8|16|32|64))
 [\r]?[\n]?      { loc_.lines(1); }
 [[:blank:]]+    { /* Ignore whitespace */ }
 
-([0-9]+|{bin_int}|{oct_int}|{dec_int}|{hex_int}){int_suffix}?   { return lex_int(yytext, loc_); }
+({bin_int}|{oct_int}|{dec_int}|{hex_int})(_?u64)?    { return lex_int<uint64_t>(yytext, loc_); }
+({bin_int}|{oct_int}|{dec_int}|{hex_int})_?i64       { return lex_int< int64_t>(yytext, loc_); }
+({bin_int}|{oct_int}|{dec_int}|{hex_int})_?u32       { return lex_int<uint32_t>(yytext, loc_); }
+({bin_int}|{oct_int}|{dec_int}|{hex_int})_?i32       { return lex_int< int32_t>(yytext, loc_); }
+({bin_int}|{oct_int}|{dec_int}|{hex_int})_?u16       { return lex_int<uint16_t>(yytext, loc_); }
+({bin_int}|{oct_int}|{dec_int}|{hex_int})_?i16       { return lex_int< int16_t>(yytext, loc_); }
+({bin_int}|{oct_int}|{dec_int}|{hex_int})_?u8        { return lex_int<uint8_t >(yytext, loc_); }
+({bin_int}|{oct_int}|{dec_int}|{hex_int})_?i8        { return lex_int< int8_t >(yytext, loc_); }
 
 {ident_start}{ident}*       { return yy::Parser::make_IDENT(yytext, loc_); }
 {typename_start}{ident}*    { return yy::Parser::make_TYPENAME(yytext, loc_); }
@@ -100,32 +95,35 @@ int_suffix      (_?[iIuU](8|16|32|64))
 [+] { return yy::Parser::make_PLUS(loc_);  }
 [-] { return yy::Parser::make_MINUS(loc_); }
 
-.       { throw_unrecognized_char(*yytext, loc_); }
+.       { throw yy::Parser::syntax_error(loc_, unrecognized_char(*yytext)); }
 <<EOF>> { return yy::Parser::make_EOF(loc_); }
 
 %%
 
 // This block is inserted at the bottom of scanner.cpp
 
-static void
-throw_unrecognized_char(char c, yy::location loc) {
+#include "parser.hpp"
+
+static std::string
+unrecognized_char(char c) {
     std::stringstream msg;
-        msg << "stray '";
-        if (c >= 0 && std::isprint(c)) {
-            msg << c;
-        } else {
-            // We want to print the character (which is a signed char) as its octal value.
-            // Casting directly to unsigned int incorrectly handles negative values:
-            // For example, (char)-1 == 0xff == 255, but (unsigned int)-1 == 0xffffffff == 4294967295.
-            // By first casting char to unsigned char, the number of set bits is preserved but the sign is changed.
-            // Just casting to uint8_t also doesn't work, because the stringstream just treats it as char
-            msg << '\\' << std::setfill('0') << std::setw(3) << std::right << std::oct;
-            msg << static_cast<int>(static_cast<unsigned char>(c));
-        }
-        msg << "' in program";
-        throw yy::Parser::syntax_error(loc, msg.str());
+    msg << "stray '";
+    if (c >= 0 && std::isprint(c)) {
+        msg << c;
+    } else {
+        // We want to print the character (which is a signed char) as its octal value.
+        // Casting directly to unsigned int incorrectly handles negative values:
+        // For example, (char)-1 == 0xff == 255, but (unsigned int)-1 == 0xffffffff == 4294967295.
+        // By first casting char to unsigned char, the number of set bits is preserved but the sign is changed.
+        // Just casting to uint8_t also doesn't work, because the stringstream just treats it as char
+        msg << '\\' << std::setfill('0') << std::setw(3) << std::right << std::oct;
+        msg << static_cast<int>(static_cast<unsigned char>(c));
+    }
+    msg << "' in program";
+    return msg.str();
 }
 
+template<typename T>
 static yy::Parser::symbol_type
 lex_int(const char *text, yy::location loc) {
     auto base = 10;
@@ -153,24 +151,22 @@ lex_int(const char *text, yy::location loc) {
             default: break;
         }
     }
-    std::string suffix;
     auto end = str.find_first_of("uUiI");
     if (end != std::string::npos) {
-        suffix = str.substr(end);
         str = str.substr(0, end);
     }
-    int_variant result;
-    if (suffix == "" || suffix == "u64") {
-        result = uint64_t();
-    } else if (suffix == "i64") {
-    }
-    std::visit([&](auto &&val) {
-        if (str_to_int(str, val, base)) {
-
+    T result;
+    if (str_to_int(str, result, base)) {
+        std::stringstream ss;
+        switch (base) {
+            case 2:  ss << "0b"; break;
+            case 8:  ss << "0o"; break;
+            case 16: ss << "0x"; break;
+            default: break;
         }
-    },
-    result);
-
+        ss << str;
+        throw yy::Parser::syntax_error(loc, int_out_of_range<T>(ss.str(), base));
+    }
     return yy::Parser::make_INT(result, loc);
 }
 
