@@ -76,14 +76,7 @@ int_suffix      (_?[iIuU](8|16|32|64))
 [\r]?[\n]?      { loc_.lines(1); }
 [[:blank:]]+    { /* Ignore whitespace */ }
 
-({bin_int}|{oct_int}|{dec_int}|{hex_int})(_?u64)?    { return lex_int<uint64_t>(yytext, loc_); }
-({bin_int}|{oct_int}|{dec_int}|{hex_int})_?i64       { return lex_int< int64_t>(yytext, loc_); }
-({bin_int}|{oct_int}|{dec_int}|{hex_int})_?u32       { return lex_int<uint32_t>(yytext, loc_); }
-({bin_int}|{oct_int}|{dec_int}|{hex_int})_?i32       { return lex_int< int32_t>(yytext, loc_); }
-({bin_int}|{oct_int}|{dec_int}|{hex_int})_?u16       { return lex_int<uint16_t>(yytext, loc_); }
-({bin_int}|{oct_int}|{dec_int}|{hex_int})_?i16       { return lex_int< int16_t>(yytext, loc_); }
-({bin_int}|{oct_int}|{dec_int}|{hex_int})_?u8        { return lex_int<uint8_t >(yytext, loc_); }
-({bin_int}|{oct_int}|{dec_int}|{hex_int})_?i8        { return lex_int< int8_t >(yytext, loc_); }
+({bin_int}|{oct_int}|{dec_int}|{hex_int}){int_suffix}?  { return yy::Parser::make_INT(yytext, loc_); }
 
 {ident_start}{ident}*       { return yy::Parser::make_IDENT(yytext, loc_); }
 {typename_start}{ident}*    { return yy::Parser::make_TYPENAME(yytext, loc_); }

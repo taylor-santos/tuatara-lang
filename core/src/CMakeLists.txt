@@ -53,12 +53,4 @@ if (MSVC)
             PUBLIC /Zc:__cplusplus) # Bison checks the __cplusplus macro to enable std::move
     target_compile_definitions(core
             PRIVATE _CRT_SECURE_NO_WARNINGS)
-else ()
-    target_compile_options(core
-            PRIVATE -fPIC)
-    if (CYGWIN)
-        # Enable mkstemp(3) (see https://man7.org/linux/man-pages/man3/mkstemp.3.html)
-        target_compile_options(core
-                PRIVATE -D_POSIX_C_SOURCE=200809L)
-    endif ()
 endif ()

@@ -39,6 +39,9 @@
 
 using int_variant = std::variant<uint64_t, int64_t, uint32_t, int32_t, uint16_t, int16_t, uint8_t, int8_t>;
 
+static int_variant
+parse_int(std::string str);
+
 template<typename T>
 std::string
 int_out_of_range(std::string val, int base = 10);
@@ -84,6 +87,168 @@ int_out_of_range(T val, int base = 10);
 #define yylex scanner.scan
 
 #define NODE(type, ...) std::make_unique<AST:: type>(__VA_ARGS__)
+
+template <bool negate>
+std::unique_ptr<AST::Literal>
+make_signed(int_variant &&var, yy::location loc);
+
+template<typename T>
+std::string
+int_out_of_range(std::string val, int base);
+
+template<bool negate, typename T>
+std::string
+int_out_of_range(T val, int base);
+
+%}
+
+%initial-action {
+    // Invoked before parsing each time parse() is called.
+    parse_failure = false;
+}
+
+/* TOKENS */
+%token
+    EOF 0       "end of file"
+    SEMICOLON   ";"
+    TYPE_DECL   "::"
+    DEFINE      ":="
+    PLUS        "+"
+    MINUS       "-"
+
+%token<std::string>
+    IDENT       "identifier"
+    TYPENAME    "type name"
+    INT         "int literal"
+
+%type<std::vector<std::unique_ptr<AST::Expression>>>
+    expressions
+
+%type<std::unique_ptr<AST::Expression>>
+    expression
+
+%type<std::unique_ptr<AST::Definition>>
+    definition
+
+%type<std::unique_ptr<AST::SimpleExpression>>
+    simple_expression
+
+%type<std::unique_ptr<AST::Literal>>
+    literal
+
+%type<std::unique_ptr<AST::Type>>
+    type
+
+%type<std::string>
+    unary_int
+
+%start file
+
+%%
+
+file
+    : %empty {
+        ast_out.clear();
+    }
+    | expressions {
+        ast_out = $1;
+        if (parse_failure) YYABORT;
+    }
+
+expressions
+    : expression ";" {
+        $$.emplace_back($1);
+    }
+    | expressions expression ";" {
+        $$ = $1;
+        $$.emplace_back($2);
+    }
+
+expression
+    : definition {
+        $$ = $1;
+    }
+    | simple_expression {
+        $$ = $1;
+    }
+
+definition
+    : "identifier" ":=" expression {
+        $$ = NODE(ValueDefinition, $1, @1, $3, @$);
+    }
+    | "identifier" "::" type {
+        $$ = NODE(TypeDefinition, $1, @1, $3, @$);
+    }
+
+simple_expression
+    : literal {
+        $$ = $1;
+    }
+    | "identifier" {
+        $$ = NODE(Variable, $1, @$);
+    }
+    | error {
+        $$ = NODE(Error, @$);
+    }
+
+literal
+    : unary_int {
+        std::visit(
+            [&](auto &&val) {
+                using T = std::decay_t<decltype(val)>;
+                $$ = NODE(Int<T>, val, @$);
+            },
+            parse_int($1)
+        );
+    }
+
+unary_int
+    : "int literal"
+    | "+" "int literal" {
+        $$ = "+" + $2;
+    }
+    | "-" "int literal" {
+        $$ = "-" + $2;
+    }
+
+type
+    : "type name" {
+        $$ = NODE(ObjectType, $1, @1, @$);
+    }
+    | error {
+        $$ = NODE(Error, @$);
+    }
+
+%%
+
+// This block is inserted at the bottom of parser.cpp
+
+namespace yy {
+
+void
+Parser::error(const location &loc, const std::string &message) {
+    if (loc.begin.filename) output << "" << *loc.begin.filename << ":";
+    output << loc.begin.line << ":" << loc.begin.column << " " << message << std::endl;
+    parse_failure = true;
+}
+
+}
+
+static int_variant
+parse_int(std::string str) {
+    str.erase(remove(str.begin(), str.end(), '_'), str.end());
+    std::string type;
+    auto end = str.find_first_of("uUiI");
+    if (end != std::string::npos) {
+        type = str.substr(end);
+        str  = str.substr(0, end);
+    }
+    if (type == "" || type[0] == 'u' || type[0] == 'U') {
+        auto val =
+    }
+
+    return 123;
+}
 
 template <bool negate>
 std::unique_ptr<AST::Literal>
@@ -158,135 +323,4 @@ int_out_of_range(T val, int base) {
         ss << static_cast<uint64_t>(val);
     }
     return int_out_of_range<T>(ss.str(), base);
-}
-
-%}
-
-%initial-action {
-    // Invoked before parsing each time parse() is called.
-    parse_failure = false;
-}
-
-/* TOKENS */
-%token
-    EOF 0       "end of file"
-    SEMICOLON   ";"
-    TYPE_DECL   "::"
-    DEFINE      ":="
-    PLUS        "+"
-    MINUS       "-"
-
-%token<std::string>
-    IDENT       "identifier"
-    TYPENAME    "type name"
-
-%token<int_variant>
-    INT     "int literal"
-
-%type<std::vector<std::unique_ptr<AST::Expression>>>
-    expressions
-
-%type<std::unique_ptr<AST::Expression>>
-    expression
-
-%type<std::unique_ptr<AST::Definition>>
-    definition
-
-%type<std::unique_ptr<AST::SimpleExpression>>
-    simple_expression
-
-%type<std::unique_ptr<AST::Literal>>
-    literal
-
-%type<std::unique_ptr<AST::Type>>
-    type
-
-
-%start file
-
-%%
-
-file
-    : %empty {
-        ast_out.clear();
-    }
-    | expressions {
-        ast_out = $1;
-        if (parse_failure) YYABORT;
-    }
-
-expressions
-    : expression ";" {
-        $$.emplace_back($1);
-    }
-    | expressions expression ";" {
-        $$ = $1;
-        $$.emplace_back($2);
-    }
-
-expression
-    : definition {
-        $$ = $1;
-    }
-    | simple_expression {
-        $$ = $1;
-    }
-
-definition
-    : "identifier" ":=" expression {
-        $$ = NODE(ValueDefinition, $1, @1, $3, @$);
-    }
-    | "identifier" "::" type {
-        $$ = NODE(TypeDefinition, $1, @1, $3, @$);
-    }
-
-simple_expression
-    : literal {
-        $$ = $1;
-    }
-    | "identifier" {
-        $$ = NODE(Variable, $1, @$);
-    }
-    | error {
-        $$ = NODE(Error, @$);
-    }
-
-literal
-    : "int literal" {
-        std::visit(
-            [&](auto &&val) {
-                using T = std::decay_t<decltype(val)>;
-                $$ = std::make_unique<AST::Int<T>>(val, @$);
-            },
-            $1
-        );
-    }
-    | "+" "int literal" {
-        $$ = make_signed<false>($2, @$);
-    }
-    | "-" "int literal" {
-        $$ = make_signed<true>($2, @$);
-    }
-
-type
-    : "type name" {
-        $$ = NODE(ObjectType, $1, @1, @$);
-    }
-    | error {
-        $$ = NODE(Error, @$);
-    }
-
-%%
-
-// This block is inserted at the bottom of parser.cpp
-
-namespace yy {
-
-void
-Parser::error(const location &loc, const std::string &message) {
-    if (loc.begin.filename) output << "" << *loc.begin.filename << ":";
-    output << loc.begin.line << ":" << loc.begin.column << " " << message << std::endl;
-    parse_failure = true;
-}
-
 }
