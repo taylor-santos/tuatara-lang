@@ -39,15 +39,13 @@
 
 #include "scanner.hpp"
 
-class yyFlexLexer;
-
 #define LINE() {                                                                                                       \
     loc.lines(1);                                                                                                      \
 }
 
 #define YY_USER_ACTION {                                                                                               \
-    loc_.step();                                                                                                        \
-    loc_.columns(yyleng);                                                                                               \
+    loc_.step();                                                                                                       \
+    loc_.columns(yyleng);                                                                                              \
 }
 
 static yy::Parser::symbol_type
@@ -108,25 +106,25 @@ lex_int(const char *yytext, yy::location loc) {
 static void
 throw_unrecognized_char(char c, yy::location loc) {
     std::stringstream msg;
-        msg << "stray '";
-        if (c >= 0 && std::isprint(c)) {
-            msg << c;
-        } else {
-            // We want to print the character (which is a signed char) as its octal value.
-            // Casting directly to unsigned int incorrectly handles negative values:
-            // For example, (char)-1 == 0xff == 255, but (unsigned int)-1 == 0xffffffff == 4294967295.
-            // By first casting char to unsigned char, the number of set bits is preserved but the sign is changed.
-            // Just casting to uint8_t also doesn't work, because the stringstream just treats it as char
-            msg << '\\' << std::setfill('0') << std::setw(3) << std::right << std::oct;
-            msg << static_cast<int>(static_cast<unsigned char>(c));
-        }
-        msg << "' in program";
-        throw yy::Parser::syntax_error(loc, msg.str());
+    msg << "stray '";
+    if (c >= 0 && std::isprint(c)) {
+        msg << c;
+    } else {
+        // We want to print the character (which is a signed char) as its octal value.
+        // Casting directly to unsigned int incorrectly handles negative values:
+        // For example, (char)-1 == 0xff == 255, but (unsigned int)-1 == 0xffffffff == 4294967295.
+        // By first casting char to unsigned char, the number of set bits is preserved but the sign is changed.
+        // Just casting to uint8_t also doesn't work, because the stringstream just treats it as char
+        msg << '\\' << std::setfill('0') << std::setw(3) << std::right << std::oct;
+        msg << static_cast<int>(static_cast<unsigned char>(c));
+    }
+    msg << "' in program";
+    throw yy::Parser::syntax_error(loc, msg.str());
 }
 
 namespace yy {
 
-Scanner::Scanner(std::string path, std::istream &input)
+Scanner::Scanner(std::string path, LineStream &input)
     : yyFlexLexer()
     , path_{std::move(path)}
     , input_{input} {

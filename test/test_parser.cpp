@@ -12,7 +12,7 @@
 
 class ScannerMock : public yy::Scanner {
 public:
-    ScannerMock(bool &did_scan, std::istream &is)
+    ScannerMock(bool &did_scan, LineStream &is)
         : yy::Scanner("mock scanner", is)
         , did_scan_{did_scan} {}
     yy::Parser::symbol_type
@@ -30,14 +30,15 @@ TEST_SUITE_BEGIN("Parser");
 TEST_CASE("parser constructs without exception") {
     GIVEN("a valid scanner") {
         auto iss     = std::istringstream();
-        auto scanner = yy::Scanner("test", iss);
+        auto lines   = LineStream(iss);
+        auto scanner = yy::Scanner("test", lines);
         auto oss     = std::ostringstream();
         auto ast     = std::vector<std::unique_ptr<AST::Expression>>();
         auto failed  = false;
 
         WHEN("a parser is constructed") {
             THEN("it should not throw an exception") {
-                CHECK_NOTHROW(auto parser = yy::Parser(scanner, oss, ast, failed));
+                CHECK_NOTHROW(auto parser = yy::Parser(scanner, oss, lines.lines(), ast, failed));
             }
         }
     }
@@ -45,13 +46,14 @@ TEST_CASE("parser constructs without exception") {
 
 TEST_CASE("parser parse method invokes scanner scan method") {
     GIVEN("a parser constructed from a mock scanner") {
-        auto iss      = std::istringstream();
         bool did_scan = false;
-        auto scanner  = ScannerMock(did_scan, iss);
+        auto iss      = std::istringstream();
+        auto lines    = LineStream(iss);
+        auto scanner  = ScannerMock(did_scan, lines);
         auto oss      = std::ostringstream();
         auto ast      = std::vector<std::unique_ptr<AST::Expression>>();
         auto failed   = false;
-        auto parser   = yy::Parser(scanner, oss, ast, failed);
+        auto parser   = yy::Parser(scanner, oss, lines.lines(), ast, failed);
         WHEN("the parser's parse method is invoked") {
             parser.parse();
             THEN("it should call the scanner's scan method") {
@@ -63,11 +65,12 @@ TEST_CASE("parser parse method invokes scanner scan method") {
 
 TEST_CASE("a scanner syntax error should be handled internally") {
     auto iss     = std::stringstream();
-    auto scanner = yy::Scanner("test", iss);
+    auto lines   = LineStream(iss);
+    auto scanner = yy::Scanner("test", lines);
     auto oss     = std::ostringstream();
     auto ast     = std::vector<std::unique_ptr<AST::Expression>>();
     auto failed  = false;
-    auto parser  = yy::Parser(scanner, oss, ast, failed);
+    auto parser  = yy::Parser(scanner, oss, lines.lines(), ast, failed);
     GIVEN("an input containing an unrecognized character") {
         iss << "\200";
         WHEN("the input is parsed") {
@@ -77,7 +80,10 @@ TEST_CASE("a scanner syntax error should be handled internally") {
                 AND_THEN("the error flag should be set") {
                     CHECK(failed == true);
                     AND_THEN("the output stream should contain an error message") {
-                        CHECK(oss.str() == "test:1:1 stray '\\200' in program\n");
+                        CHECK(
+                            oss.str() == "test:1:1-1:2 stray '\\200' in program\n"
+                                         "1 | \200\n"
+                                         "  | ~\n");
                     }
                 }
             }
@@ -87,11 +93,12 @@ TEST_CASE("a scanner syntax error should be handled internally") {
 
 TEST_CASE("valid expressions") {
     auto iss     = std::stringstream();
-    auto scanner = yy::Scanner("test", iss);
+    auto lines   = LineStream(iss);
+    auto scanner = yy::Scanner("test", lines);
     auto oss     = std::ostringstream();
     auto ast     = std::vector<std::unique_ptr<AST::Expression>>();
     auto failed  = false;
-    auto parser  = yy::Parser(scanner, oss, ast, failed);
+    auto parser  = yy::Parser(scanner, oss, lines.lines(), ast, failed);
 
     std::list<std::pair<const char *, std::vector<std::string>>> cases{
         {"foo :: Int;",
@@ -135,11 +142,12 @@ TEST_CASE("valid expressions") {
 
 TEST_CASE("expression error handling") {
     auto iss     = std::stringstream();
-    auto scanner = yy::Scanner("test", iss);
+    auto lines   = LineStream(iss);
+    auto scanner = yy::Scanner("test", lines);
     auto oss     = std::ostringstream();
     auto ast     = std::vector<std::unique_ptr<AST::Expression>>();
     auto failed  = false;
-    auto parser  = yy::Parser(scanner, oss, ast, failed);
+    auto parser  = yy::Parser(scanner, oss, lines.lines(), ast, failed);
 
     auto json_outputs = std::vector<std::string>{
         R"({"node":"error","location":{"begin":{"filename":"test","line":1,"column":1},"end":{"filename":"test","line":1,"column":11}}})",
@@ -156,8 +164,14 @@ TEST_CASE("expression error handling") {
                 AND_THEN("both errors are reported") {
                     CHECK(
                         oss.str() ==
-                        "test:1:8 syntax error, unexpected type name, expecting u64 or identifier\n"
-                        "test:2:8 syntax error, unexpected u64, expecting type name\n");
+                        "test:1:8-1:11 syntax error, unexpected type name, expecting u64 or "
+                        "identifier\n"
+                        "1 | foo := Int;\n"
+                        "  |        ~~~\n"
+                        "test:2:8-2:11 syntax error, unexpected u64, expecting type name\n"
+                        "1 | foo := Int;\n"
+                        "2 | bar :: 123;\n"
+                        "  |        ~~~\n");
                     AND_THEN("the produced ast should match the expected output") {
                         auto n = json_outputs.size();
                         REQUIRE(ast.size() == n);

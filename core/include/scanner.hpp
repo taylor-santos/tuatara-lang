@@ -7,6 +7,7 @@
 #include <filesystem>
 
 #include "parser.hpp"
+#include "line_stream.hpp"
 
 #undef YY_DECL
 #define YY_DECL yy::Parser::symbol_type yy::Scanner::scan()
@@ -19,7 +20,7 @@ namespace yy {
 
 class Scanner : public yyFlexLexer {
 public:
-    Scanner(std::string path, std::istream &input);
+    Scanner(std::string path, LineStream &input);
     ~Scanner() override;
 
     Scanner(const Scanner &) = delete;
@@ -33,9 +34,9 @@ public:
     scan();
 
 private:
-    location      loc_;
-    std::string   path_;
-    std::istream &input_;
+    location    loc_;
+    std::string path_;
+    LineStream &input_;
 };
 
 } // namespace yy
