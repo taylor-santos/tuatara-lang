@@ -5,7 +5,9 @@ set(TEST_NAME
         ${PROJECT_NAME}_tests)
 
 set(TEST_SOURCES
-        test_scanner.cpp test_parser.cpp)
+        test_scanner.cpp
+        test_parser.cpp
+        test_line_stream.cpp)
 
 add_executable(${TEST_NAME}
         ${TEST_SOURCES}

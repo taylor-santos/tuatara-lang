@@ -12,7 +12,8 @@ set(CORE_SOURCES
         ast/type.cpp
         ast/object_type.cpp
         ast/error.cpp
-        json.cpp)
+        json.cpp
+        line_stream.cpp)
 
 set(CMAKE_FIND_USE_PACKAGE_ROOT_PATH ON)
 find_package(FLEX 2.6.4
@@ -53,12 +54,4 @@ if (MSVC)
             PUBLIC /Zc:__cplusplus) # Bison checks the __cplusplus macro to enable std::move
     target_compile_definitions(core
             PRIVATE _CRT_SECURE_NO_WARNINGS)
-else ()
-    target_compile_options(core
-            PRIVATE -fPIC)
-    if (CYGWIN)
-        # Enable mkstemp(3) (see https://man7.org/linux/man-pages/man3/mkstemp.3.html)
-        target_compile_options(core
-                PRIVATE -D_POSIX_C_SOURCE=200809L)
-    endif ()
 endif ()
