@@ -4,9 +4,12 @@
 
 #include "ast/value_definition.hpp"
 #include "json.hpp"
+#include "type/context.hpp"
+#include "type/error.hpp"
 
 #include <utility>
 #include <ostream>
+#include <sstream>
 
 namespace AST {
 
@@ -35,6 +38,33 @@ ValueDefinition::to_json(std::ostream &os) const {
        << R"("value":)";
     value_->to_json(os);
     os << "}";
+}
+
+const TypeChecker::Type &
+ValueDefinition::get_type(TypeChecker::Context &ctx) const {
+    auto name = get_name();
+    auto prev = ctx.get_symbol(name);
+    if (prev) {
+        // TODO: Proper error handling
+        ctx.set_failure(true);
+        std::stringstream ss;
+        ss << name << " already defined as ";
+        prev->get().print(ss);
+        throw std::runtime_error(ss.str());
+    }
+
+    auto &type = [&]() -> const TypeChecker::Type & {
+        try {
+            return value_->get_type(ctx);
+        } catch (std::exception &e) {
+            // TODO: Proper error handling
+            ctx.set_failure(true);
+            std::cerr << e.what() << std::endl;
+            return ctx.add_type(std::make_unique<TypeChecker::Error>());
+        }
+    }();
+    ctx.set_symbol(name, type);
+    return type;
 }
 
 } // namespace AST

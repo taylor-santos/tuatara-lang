@@ -26,6 +26,9 @@ public:
     void
     to_json(std::ostream &os) const override;
 
+    [[nodiscard]] const TypeChecker::Type &
+    get_type(TypeChecker::Context &ctx) const override;
+
 private:
     std::unique_ptr<AST::Type> type_;
 };

@@ -5,9 +5,11 @@
 #include <iostream>
 #include <fstream>
 #include <cstring>
+#include <algorithm>
 
 #include "scanner.hpp"
 #include "ast/expression.hpp"
+#include "type/context.hpp"
 
 int
 main(int argc, char **argv) {
@@ -33,15 +35,29 @@ main(int argc, char **argv) {
     scanner.set_debug_level(0);
     parser.set_debug_level(0);
     parser.parse();
-    if (!failed) {
-        std::cout << "[";
-        std::string sep;
-        for (const auto &expr : ast) {
-            std::cout << sep;
-            sep = ",";
-            expr->to_json(std::cout);
-        }
-        std::cout << "]";
+    if (failed) {
+        exit(EXIT_FAILURE);
     }
-    return failed;
+
+    TypeChecker::Context                   ctx;
+    std::vector<const TypeChecker::Type *> types;
+    types.reserve(ast.size());
+    std::transform(
+        ast.begin(),
+        ast.end(),
+        std::back_inserter(types),
+        [&ctx](const auto &expr) -> const TypeChecker::Type * { return &expr->get_type(ctx); });
+
+    std::cout << "[";
+    std::string sep;
+    for (const auto &expr : ast) {
+        std::cout << sep;
+        sep = ",";
+        expr->to_json(std::cout);
+    }
+    std::cout << "]";
+    std::cout << std::endl;
+    ctx.print_symbols(std::cout);
+
+    return ctx.did_fail();
 }

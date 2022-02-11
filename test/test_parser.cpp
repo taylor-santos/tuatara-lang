@@ -101,8 +101,8 @@ TEST_CASE("valid expressions") {
     auto parser  = yy::Parser(scanner, oss, lines.lines(), ast, failed);
 
     std::list<std::pair<const char *, std::vector<std::string>>> cases{
-        {"foo :: Int;",
-         {R"({"node":"type definition","location":{"begin":{"filename":"test","line":1,"column":1},"end":{"filename":"test","line":1,"column":11}},"name":"foo","name location":{"begin":{"filename":"test","line":1,"column":1},"end":{"filename":"test","line":1,"column":4}},"type":{"node":"object type","location":{"begin":{"filename":"test","line":1,"column":8},"end":{"filename":"test","line":1,"column":11}},"class":"Int","name location":{"begin":{"filename":"test","line":1,"column":8},"end":{"filename":"test","line":1,"column":11}}}})"}},
+        {"foo :: U64;",
+         {R"({"node":"type definition","location":{"begin":{"filename":"test","line":1,"column":1},"end":{"filename":"test","line":1,"column":11}},"name":"foo","name location":{"begin":{"filename":"test","line":1,"column":1},"end":{"filename":"test","line":1,"column":4}},"type":{"node":"object type","location":{"begin":{"filename":"test","line":1,"column":8},"end":{"filename":"test","line":1,"column":11}},"class":"U64","name location":{"begin":{"filename":"test","line":1,"column":8},"end":{"filename":"test","line":1,"column":11}}}})"}},
         {"foo := 123;",
          {R"({"node":"value definition","location":{"begin":{"filename":"test","line":1,"column":1},"end":{"filename":"test","line":1,"column":11}},"name":"foo","name location":{"begin":{"filename":"test","line":1,"column":1},"end":{"filename":"test","line":1,"column":4}},"value":{"node":"u64","location":{"begin":{"filename":"test","line":1,"column":8},"end":{"filename":"test","line":1,"column":11}},"value":"123"}})"}},
         {"foo := bar;",
@@ -155,7 +155,7 @@ TEST_CASE("expression error handling") {
     };
 
     GIVEN("an input with more than one syntax error") {
-        iss << "foo := Int;\nbar :: 123;";
+        iss << "foo := U64;\nbar :: 123;";
         WHEN("the input is parsed") {
             auto result = parser.parse();
             THEN("an error code is returned") {
@@ -166,10 +166,10 @@ TEST_CASE("expression error handling") {
                         oss.str() ==
                         "test:1:8-1:11 syntax error, unexpected type name, expecting u64 or "
                         "identifier\n"
-                        "1 | foo := Int;\n"
+                        "1 | foo := U64;\n"
                         "  |        ~~~\n"
                         "test:2:8-2:11 syntax error, unexpected u64, expecting type name\n"
-                        "1 | foo := Int;\n"
+                        "1 | foo := U64;\n"
                         "2 | bar :: 123;\n"
                         "  |        ~~~\n");
                     AND_THEN("the produced ast should match the expected output") {

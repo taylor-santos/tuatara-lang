@@ -1,2 +1,3 @@
 foo := 123;
-bar :: Int;
+bar :: U64;
+baz := foo;

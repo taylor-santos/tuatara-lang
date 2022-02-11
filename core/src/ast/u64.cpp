@@ -4,6 +4,8 @@
 
 #include "ast/u64.hpp"
 #include "json.hpp"
+#include "type/context.hpp"
+#include "type/object.hpp"
 
 #include <ostream>
 
@@ -24,6 +26,11 @@ U64::to_json(std::ostream &os) const {
     os << ","
        << R"("value":")" << value_ << R"(")"
        << "}";
+}
+
+const TypeChecker::Type &
+U64::get_type(TypeChecker::Context &ctx) const {
+    return ctx.add_type(std::make_unique<TypeChecker::Object>(TypeChecker::Context::builtins.U64));
 }
 
 } // namespace AST

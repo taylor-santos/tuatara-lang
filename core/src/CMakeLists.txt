@@ -12,6 +12,11 @@ set(CORE_SOURCES
         ast/type.cpp
         ast/object_type.cpp
         ast/error.cpp
+        type/context.cpp
+        type/type.cpp
+        type/error.cpp
+        type/class.cpp
+        type/object.cpp
         json.cpp
         line_stream.cpp)
 
@@ -47,6 +52,11 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_
     # g++8 doesn't automatically link the std::filesystem library, so -lstdc++fs must be explicitly linked
     target_link_libraries(core
             PUBLIC stdc++fs)
+endif ()
+if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 10)
+    # clang++-9 warns by default when using designated initializers, which are standard in C++20
+    target_compile_options(core
+            PUBLIC -Wno-c99-extensions)
 endif ()
 
 if (MSVC)
