@@ -7,7 +7,13 @@ set(TEST_NAME
 set(TEST_SOURCES
         test_scanner.cpp
         test_parser.cpp
-        test_line_stream.cpp)
+        test_line_stream.cpp
+        ast/test_u64.cpp
+        ast/test_error.cpp
+        ast/test_object_type.cpp
+        ast/test_type_definition.cpp
+        ast/test_value_definition.cpp
+        ast/test_variable.cpp)
 
 add_executable(${TEST_NAME}
         ${TEST_SOURCES}

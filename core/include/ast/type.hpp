@@ -5,6 +5,7 @@
 #pragma once
 
 #include "ast/ast.hpp"
+#include "type/type.hpp"
 
 namespace AST {
 

@@ -5,9 +5,11 @@
 #include "ast/type_definition.hpp"
 #include "ast/type.hpp"
 #include "json.hpp"
+#include "type/context.hpp"
 
 #include <utility>
 #include <ostream>
+#include <sstream>
 
 namespace AST {
 
@@ -36,6 +38,23 @@ TypeDefinition::to_json(std::ostream &os) const {
        << R"("type":)";
     type_->to_json(os);
     os << "}";
+}
+
+const TypeChecker::Type &
+TypeDefinition::get_type(TypeChecker::Context &ctx) const {
+    auto name = get_name();
+    auto prev = ctx.get_symbol(name);
+    if (prev) {
+        // TODO: Proper error handling
+        ctx.set_failure(true);
+        std::stringstream ss;
+        ss << name << " already defined as ";
+        prev->get().print(ss);
+        throw std::runtime_error(ss.str());
+    }
+    auto &type = type_->get_type(ctx);
+    ctx.set_symbol(name, type, false);
+    return type;
 }
 
 } // namespace AST

@@ -3,7 +3,10 @@
 //
 
 #include "ast/object_type.hpp"
+#include "type/context.hpp"
+#include "type/class.hpp"
 #include "json.hpp"
+#include "type/object.hpp"
 
 #include <utility>
 #include <ostream>
@@ -28,6 +31,17 @@ ObjectType::to_json(std::ostream &os) const {
        << R"("name location":)";
     loc_to_json(*name_loc_, os);
     os << "}";
+}
+
+const TypeChecker::Type &
+ObjectType::get_type(TypeChecker::Context &ctx) const {
+    auto cl = ctx.get_class(name_);
+    if (!cl) {
+        // TODO: Proper error handling
+        ctx.set_failure(true);
+        throw std::runtime_error(name_ + " does not name a class");
+    }
+    return ctx.add_type(std::make_unique<TypeChecker::Object>(cl->get()));
 }
 
 } // namespace AST
