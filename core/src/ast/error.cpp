@@ -5,7 +5,7 @@
 #include "ast/error.hpp"
 #include "json.hpp"
 #include "type/error.hpp"
-#include "type/context.hpp"
+#include "type/type_checker.hpp"
 
 #include <ostream>
 

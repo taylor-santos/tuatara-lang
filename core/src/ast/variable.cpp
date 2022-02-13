@@ -4,7 +4,7 @@
 
 #include "ast/variable.hpp"
 #include "json.hpp"
-#include "type/context.hpp"
+#include "type/type_checker.hpp"
 
 #include <utility>
 #include <ostream>
@@ -31,19 +31,36 @@ Variable::to_json(std::ostream &os) const {
 
 const TypeChecker::Type &
 Variable::get_type(TypeChecker::Context &ctx) const {
+    using namespace TypeChecker;
     auto type = ctx.get_symbol(name_);
     if (!type) {
         // TODO: Proper error handling
         ctx.set_failure(true);
-        throw std::runtime_error(name_ + " was not declared in this scope");
+        throw std::runtime_error("`" + name_ + "` was not declared in this scope");
     } else {
-        auto init = ctx.is_initialized(name_);
-        if (!init) {
+        auto &t      = type->get();
+        auto  uninit = ctx.is_uninitialized(name_);
+        if (uninit) {
             // TODO: Proper error handling
             ctx.set_failure(true);
-            std::cerr << name_ << " used before initialization" << std::endl;
+            std::stringstream error;
+            switch (uninit->reason) {
+                case Uninit::Reason::NOT_DEFINED:
+                    error << "`" << name_ << "` used before initialization";
+                    break;
+                case Uninit::Reason::MOVED_FROM:
+                    error << "`" << name_ << "` used after being moved";
+                    break;
+            }
+            ctx.report_error(get_loc(), error.str());
+            // We can fall through and return `t` here instead of an `Error` type, because the
+            // expected type of the variable can still be known even though it isn't allowed to be
+            // used. This is still a type error, but later type errors can still be inferred from
+            // this type.
+        } else {
+            ctx.set_symbol(name_, t, Uninit{Uninit::Reason::MOVED_FROM, *this});
         }
-        return type->get();
+        return t;
     }
 }
 

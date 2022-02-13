@@ -4,7 +4,7 @@
 
 #include "ast/u64.hpp"
 #include "json.hpp"
-#include "type/context.hpp"
+#include "type/type_checker.hpp"
 #include "type/object.hpp"
 
 #include <ostream>
