@@ -10,15 +10,21 @@
 #include <optional>
 
 #include "type/class.hpp"
+#include "ast/ast.hpp"
 
 namespace TypeChecker {
 
 class Type;
 class Class;
 
+struct Uninit {
+    enum class Reason { NOT_DEFINED, MOVED_FROM } reason;
+    const AST::Node &node;
+};
+
 class Context {
 public:
-    Context();
+    explicit Context(std::ostream &out);
     ~Context();
 
     const Type &
@@ -27,11 +33,14 @@ public:
     [[nodiscard]] std::optional<std::reference_wrapper<const Type>>
     get_symbol(const std::string &name) const;
 
-    [[nodiscard]] bool
-    is_initialized(const std::string &symbol) const;
+    [[nodiscard]] std::optional<Uninit>
+    is_uninitialized(const std::string &symbol) const;
 
     void
-    set_symbol(const std::string &name, const Type &type, bool initialized = true);
+    set_symbol(const std::string &name, const Type &type);
+
+    void
+    set_symbol(const std::string &name, const Type &type, std::optional<Uninit> uninit_reason);
 
     [[nodiscard]] std::optional<std::reference_wrapper<const Class>>
     get_class(const std::string &name) const;
@@ -45,13 +54,17 @@ public:
     [[nodiscard]] bool
     did_fail() const;
 
+    void
+    report_error(yy::location loc, const std::string &message) const;
+
     static struct Builtins { const TypeChecker::Class U64; } builtins;
 
 private:
     struct symbol {
-        const Type &type;
-        bool        initialized;
+        const Type           &type;
+        std::optional<Uninit> uninit_reason;
     };
+    std::ostream                                  &out_;
     bool                                           did_fail_ = false;
     std::vector<std::unique_ptr<Type>>             types_;
     std::unordered_map<std::string, const Class *> classes_;

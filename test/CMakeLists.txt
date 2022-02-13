@@ -8,6 +8,7 @@ set(TEST_SOURCES
         test_scanner.cpp
         test_parser.cpp
         test_line_stream.cpp
+        test_type_checker.cpp
         ast/test_u64.cpp
         ast/test_error.cpp
         ast/test_object_type.cpp

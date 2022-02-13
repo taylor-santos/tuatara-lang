@@ -6,16 +6,19 @@
 
 #include "location.hh"
 #include "ast/type_definition.hpp"
-#include "type/context.hpp"
+#include "type/type_checker.hpp"
 #include "type/object.hpp"
 #include "ast/object_type.hpp"
+
+#include <sstream>
 
 TEST_CASE("AST TypeDefinition get_type") {
     auto loc = yy::location{};
     auto def = std::make_unique<AST::ObjectType>("U64", loc, loc);
+    auto out = std::ostringstream();
     GIVEN("a new identifier") {
         auto node = AST::TypeDefinition("foo", loc, std::move(def), loc);
-        auto ctx  = TypeChecker::Context();
+        auto ctx  = TypeChecker::Context(out);
 
         THEN("the node should type check correctly") {
             auto &type = node.get_type(ctx);
@@ -26,7 +29,7 @@ TEST_CASE("AST TypeDefinition get_type") {
     }
     GIVEN("an existing identifier") {
         auto node     = AST::TypeDefinition("foo", loc, std::move(def), loc);
-        auto ctx      = TypeChecker::Context();
+        auto ctx      = TypeChecker::Context(out);
         auto old_type = TypeChecker::Object(TypeChecker::Context::builtins.U64);
         ctx.set_symbol("foo", old_type);
 

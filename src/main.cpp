@@ -9,7 +9,8 @@
 
 #include "scanner.hpp"
 #include "ast/expression.hpp"
-#include "type/context.hpp"
+#include "type/type_checker.hpp"
+#include "type/error.hpp"
 
 int
 main(int argc, char **argv) {
@@ -39,24 +40,31 @@ main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    TypeChecker::Context                   ctx;
-    std::vector<const TypeChecker::Type *> types;
+    auto ctx   = TypeChecker::Context(std::cerr);
+    auto types = std::vector<const TypeChecker::Type *>();
     types.reserve(ast.size());
     std::transform(
         ast.begin(),
         ast.end(),
         std::back_inserter(types),
-        [&ctx](const auto &expr) -> const TypeChecker::Type * { return &expr->get_type(ctx); });
+        [&ctx](const auto &expr) -> const TypeChecker::Type * {
+            try {
+                return &expr->get_type(ctx);
+            } catch (const std::exception &e) {
+                std::cerr << e.what() << std::endl;
+                return &ctx.add_type(std::make_unique<TypeChecker::Error>());
+            }
+        });
 
-    std::cout << "[";
-    std::string sep;
-    for (const auto &expr : ast) {
-        std::cout << sep;
-        sep = ",";
-        expr->to_json(std::cout);
-    }
-    std::cout << "]";
-    std::cout << std::endl;
+    //    std::cout << "[";
+    //    std::string sep;
+    //    for (const auto &expr : ast) {
+    //        std::cout << sep;
+    //        sep = ",";
+    //        expr->to_json(std::cout);
+    //    }
+    //    std::cout << "]";
+    //    std::cout << std::endl;
     ctx.print_symbols(std::cout);
 
     return ctx.did_fail();

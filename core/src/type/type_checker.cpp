@@ -2,8 +2,9 @@
 // Created by taylor-santos on 2/7/2022 at 19:35.
 //
 
-#include "type/context.hpp"
+#include "type/type_checker.hpp"
 #include "type/class.hpp"
+#include "location.hh"
 
 #include <ostream>
 #include <iomanip>
@@ -13,7 +14,8 @@ namespace TypeChecker {
 
 Context::Builtins Context::builtins = {.U64 = TypeChecker::Class("U64")};
 
-Context::Context() {
+Context::Context(std::ostream &out)
+    : out_{out} {
     classes_["U64"] = &builtins.U64;
 }
 
@@ -34,15 +36,25 @@ Context::get_symbol(const std::string &name) const {
     return it->second.type;
 }
 
-bool
-Context::is_initialized(const std::string &symbol) const {
+std::optional<Uninit>
+Context::is_uninitialized(const std::string &symbol) const {
     auto it = symbols_.find(symbol);
-    return !(it == symbols_.end()) && it->second.initialized;
+    return (it == symbols_.end()) ? std::nullopt : it->second.uninit_reason;
 }
 
 void
-Context::set_symbol(const std::string &name, const Type &type, bool initialized) {
-    symbols_.emplace(name, Context::symbol{type, initialized});
+Context::set_symbol(const std::string &name, const Type &type) {
+    symbols_.erase(name);
+    symbols_.emplace(name, Context::symbol{type, {}});
+}
+
+void
+Context::set_symbol(
+    const std::string    &name,
+    const Type           &type,
+    std::optional<Uninit> uninit_reason) {
+    symbols_.erase(name);
+    symbols_.emplace(name, Context::symbol{type, uninit_reason});
 }
 
 std::optional<std::reference_wrapper<const Class>>
@@ -68,7 +80,7 @@ Context::print_symbols(std::ostream &out) const {
     out << std::setw(width) << std::left << name_label << " Type" << std::endl;
     for (auto &[name, symbol] : symbols_) {
         out << std::setw(width) << std::left << name << " " << symbol.type;
-        if (!symbol.initialized) {
+        if (symbol.uninit_reason) {
             out << " (uninitialized)";
         }
         out << std::endl;
@@ -86,6 +98,11 @@ Context::set_failure(bool failure) {
 bool
 Context::did_fail() const {
     return did_fail_;
+}
+
+void
+Context::report_error(yy::location loc, const std::string &message) const {
+    out_ << loc << ": " << message << std::endl;
 }
 
 } // namespace TypeChecker

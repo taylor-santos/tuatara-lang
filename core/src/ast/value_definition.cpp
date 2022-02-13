@@ -4,7 +4,7 @@
 
 #include "ast/value_definition.hpp"
 #include "json.hpp"
-#include "type/context.hpp"
+#include "type/type_checker.hpp"
 #include "type/error.hpp"
 
 #include <utility>
@@ -44,14 +44,6 @@ const TypeChecker::Type &
 ValueDefinition::get_type(TypeChecker::Context &ctx) const {
     auto name = get_name();
     auto prev = ctx.get_symbol(name);
-    if (prev) {
-        // TODO: Proper error handling
-        ctx.set_failure(true);
-        std::stringstream ss;
-        ss << name << " already defined as ";
-        prev->get().print(ss);
-        throw std::runtime_error(ss.str());
-    }
 
     auto &type = [&]() -> const TypeChecker::Type & {
         try {
@@ -59,10 +51,19 @@ ValueDefinition::get_type(TypeChecker::Context &ctx) const {
         } catch (std::exception &e) {
             // TODO: Proper error handling
             ctx.set_failure(true);
-            std::cerr << e.what() << std::endl;
+            ctx.report_error(get_loc(), e.what());
             return ctx.add_type(std::make_unique<TypeChecker::Error>());
         }
     }();
+
+    if (prev) { // TODO: Check if subtype
+        // TODO: Proper error handling
+        ctx.set_failure(true);
+        std::stringstream ss;
+        ss << name << " already defined as ";
+        prev->get().print(ss);
+        throw std::runtime_error(ss.str());
+    }
     ctx.set_symbol(name, type);
     return type;
 }

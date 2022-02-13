@@ -3,7 +3,7 @@
 //
 
 #include "ast/object_type.hpp"
-#include "type/context.hpp"
+#include "type/type_checker.hpp"
 #include "type/class.hpp"
 #include "json.hpp"
 #include "type/object.hpp"

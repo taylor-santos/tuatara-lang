@@ -12,7 +12,7 @@ set(CORE_SOURCES
         ast/type.cpp
         ast/object_type.cpp
         ast/error.cpp
-        type/context.cpp
+        type/type_checker.cpp
         type/type.cpp
         type/error.cpp
         type/class.cpp

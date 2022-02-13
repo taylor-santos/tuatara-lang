@@ -6,14 +6,17 @@
 
 #include "location.hh"
 #include "ast/object_type.hpp"
-#include "type/context.hpp"
+#include "type/type_checker.hpp"
 #include "type/object.hpp"
+
+#include <sstream>
 
 TEST_CASE("AST ObjectType get_type") {
     auto loc = yy::location{};
+    auto out = std::ostringstream();
     GIVEN("a valid class name") {
         auto u64 = AST::ObjectType("U64", loc, loc);
-        auto ctx = TypeChecker::Context();
+        auto ctx = TypeChecker::Context(out);
 
         WHEN("the object is type checked") {
             auto &type = u64.get_type(ctx);
@@ -31,7 +34,7 @@ TEST_CASE("AST ObjectType get_type") {
     }
     GIVEN("an invalid class name") {
         auto u64 = AST::ObjectType("Foobar", loc, loc);
-        auto ctx = TypeChecker::Context();
+        auto ctx = TypeChecker::Context(out);
 
         WHEN("the object is type checked") {
             THEN("it should throw a type error") {
