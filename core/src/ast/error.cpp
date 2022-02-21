@@ -27,7 +27,7 @@ Error::to_json(std::ostream &os) const {
 
 const TypeChecker::Type &
 Error::get_type(TypeChecker::Context &ctx) const {
-    return ctx.add_type(std::make_unique<TypeChecker::Error>());
+    return ctx.add_type(std::make_unique<TypeChecker::Error>(get_loc()));
 }
 
 } // namespace AST

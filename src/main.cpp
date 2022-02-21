@@ -5,12 +5,19 @@
 #include <iostream>
 #include <fstream>
 #include <cstring>
-#include <algorithm>
 
 #include "scanner.hpp"
-#include "ast/expression.hpp"
 #include "type/type_checker.hpp"
-#include "type/error.hpp"
+#include "driver.hpp"
+
+#define POS(FILE, LINE, COL)  \
+    yy::position {            \
+        (FILE), (LINE), (COL) \
+    }
+#define LOC(FILE, BEGIN_LINE, BEGIN_COL, END_LINE, END_COL)                        \
+    yy::location {                                                                 \
+        POS((FILE), (BEGIN_LINE), (BEGIN_COL)), POS((FILE), (END_LINE), (END_COL)) \
+    }
 
 int
 main(int argc, char **argv) {
@@ -19,53 +26,48 @@ main(int argc, char **argv) {
         return 1;
     }
 
-    std::ifstream input;
-    input.exceptions(std::ios::badbit | std::ios::failbit);
-    try {
-        input.open(argv[1]);
-    } catch (std::ios_base::failure &) {
-        std::cerr << argv[1] << ": " << std::strerror(errno) << std::endl;
-        return 1;
-    }
-    auto lines   = LineStream(input);
-    auto path    = std::filesystem::relative(argv[1]);
-    auto scanner = yy::Scanner(path.string(), lines);
-    auto ast     = std::vector<std::unique_ptr<AST::Expression>>();
-    auto failed  = false;
-    auto parser  = yy::Parser(scanner, std::cerr, lines.lines(), ast, failed);
-    scanner.set_debug_level(0);
-    parser.set_debug_level(0);
-    parser.parse();
-    if (failed) {
-        exit(EXIT_FAILURE);
-    }
+    std::vector<std::string> lines{
+        "1234567890",
+        "1234567890",
+        "1234567890",
+        "1234567890",
+        "1234567890",
+    };
+    auto           fn      = std::string("foobar.tta");
+    print::Message message = print::Message::error(POS(&fn, 2, 4))
+                                 .with_message("this is an error")
+                                 .in(print::color::bold_gray)
+                                 .with_detail_at(LOC(&fn, 1, 8, 2, 3))
+                                 .with_message("foo")
+                                 .in(print::color::bold_red)
+                                 .with_detail_at(LOC(&fn, 2, 7, 4, 2))
+                                 .with_message("baz")
+                                 .in(print::color::bold_green)
+                                 .with_detail_at(LOC(&fn, 2, 4, 2, 6))
+                                 .with_message("qux")
+                                 .in(print::color::bold_magenta)
+                                 .with_detail_at(LOC(&fn, 4, 4, 5, 4))
+                                 .with_message("bar")
+                                 .in(print::color::bold_yellow);
+    message.print(lines, std::cout);
 
-    auto ctx   = TypeChecker::Context(std::cerr);
-    auto types = std::vector<const TypeChecker::Type *>();
-    types.reserve(ast.size());
-    std::transform(
-        ast.begin(),
-        ast.end(),
-        std::back_inserter(types),
-        [&ctx](const auto &expr) -> const TypeChecker::Type * {
-            try {
-                return &expr->get_type(ctx);
-            } catch (const std::exception &e) {
-                std::cerr << e.what() << std::endl;
-                return &ctx.add_type(std::make_unique<TypeChecker::Error>());
-            }
-        });
-
-    //    std::cout << "[";
-    //    std::string sep;
-    //    for (const auto &expr : ast) {
-    //        std::cout << sep;
-    //        sep = ",";
-    //        expr->to_json(std::cout);
+    //    std::ifstream input;
+    //    input.exceptions(std::ios::badbit | std::ios::failbit);
+    //    try {
+    //        input.open(argv[1]);
+    //    } catch (std::ios_base::failure &) {
+    //        std::cerr << argv[1] << ": " << std::strerror(errno) << std::endl;
+    //        return 1;
     //    }
-    //    std::cout << "]";
-    //    std::cout << std::endl;
-    ctx.print_symbols(std::cout);
-
-    return ctx.did_fail();
+    //    auto driver = Driver(input);
+    //
+    //    auto path = std::filesystem::relative(argv[1]).string();
+    //    driver.parse(&path);
+    //    auto ctx = driver.type_check();
+    //
+    //    for (auto &message : driver.errors()) {
+    //        message.print(driver.lines(), std::cout);
+    //    }
+    //
+    //    return 0;
 }

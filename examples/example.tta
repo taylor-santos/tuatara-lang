@@ -1,3 +1,7 @@
-foo := 123;
-bar :: U64;
-baz := foo;
+foo
+ ::
+
+
+
+   U64;
+bar := foo;

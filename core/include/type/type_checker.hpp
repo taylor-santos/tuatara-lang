@@ -11,11 +11,9 @@
 
 #include "type/class.hpp"
 #include "ast/ast.hpp"
+#include "printer.hpp"
 
 namespace TypeChecker {
-
-class Type;
-class Class;
 
 struct Uninit {
     enum class Reason { NOT_DEFINED, MOVED_FROM } reason;
@@ -24,8 +22,11 @@ struct Uninit {
 
 class Context {
 public:
-    explicit Context(std::ostream &out);
+    explicit Context(std::vector<print::Message> &errors);
+    Context(Context &&other) = default;
     ~Context();
+
+    Context(const Context &) = delete;
 
     const Type &
     add_type(std::unique_ptr<Type> type);
@@ -36,11 +37,18 @@ public:
     [[nodiscard]] std::optional<Uninit>
     is_uninitialized(const std::string &symbol) const;
 
-    void
-    set_symbol(const std::string &name, const Type &type);
+    [[nodiscard]] std::optional<yy::location>
+    get_symbol_loc(const std::string &symbol) const;
 
     void
-    set_symbol(const std::string &name, const Type &type, std::optional<Uninit> uninit_reason);
+    set_symbol(const std::string &name, const Type &type, yy::location loc);
+
+    void
+    set_symbol(
+        const std::string    &name,
+        const Type           &type,
+        yy::location          loc,
+        std::optional<Uninit> uninit_reason);
 
     [[nodiscard]] std::optional<std::reference_wrapper<const Class>>
     get_class(const std::string &name) const;
@@ -55,7 +63,7 @@ public:
     did_fail() const;
 
     void
-    report_error(yy::location loc, const std::string &message) const;
+    add_message(const print::Message &message) const;
 
     static struct Builtins { const TypeChecker::Class U64; } builtins;
 
@@ -63,8 +71,9 @@ private:
     struct symbol {
         const Type           &type;
         std::optional<Uninit> uninit_reason;
+        yy::location          init_loc;
     };
-    std::ostream                                  &out_;
+    std::vector<print::Message>                   &errors_;
     bool                                           did_fail_ = false;
     std::vector<std::unique_ptr<Type>>             types_;
     std::unordered_map<std::string, const Class *> classes_;

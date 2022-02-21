@@ -44,27 +44,27 @@ const TypeChecker::Type &
 ValueDefinition::get_type(TypeChecker::Context &ctx) const {
     auto name = get_name();
     auto prev = ctx.get_symbol(name);
+    if (prev) {
+        using namespace print;
 
-    auto &type = [&]() -> const TypeChecker::Type & {
-        try {
-            return value_->get_type(ctx);
-        } catch (std::exception &e) {
-            // TODO: Proper error handling
-            ctx.set_failure(true);
-            ctx.report_error(get_loc(), e.what());
-            return ctx.add_type(std::make_unique<TypeChecker::Error>());
-        }
-    }();
-
-    if (prev) { // TODO: Check if subtype
-        // TODO: Proper error handling
         ctx.set_failure(true);
-        std::stringstream ss;
-        ss << name << " already defined as ";
-        prev->get().print(ss);
-        throw std::runtime_error(ss.str());
+        auto message = Message::error(get_loc().begin)
+                           .with_message("`" + name + "` already defined")
+                           .in(color::bold_gray);
+        auto prev_loc = ctx.get_symbol_loc(name);
+        if (prev_loc) {
+            message.with_detail_at(*prev_loc)
+                .with_message("previous definition of `" + name + "` here")
+                .in(color::bold_yellow);
+        }
+        message.with_detail_at(get_loc())
+            .with_message("redefined `" + name + "` here")
+            .in(color::bold_red);
+        ctx.add_message(message);
+        return ctx.add_type(std::make_unique<TypeChecker::Error>(get_loc()));
     }
-    ctx.set_symbol(name, type);
+    auto &type = value_->get_type(ctx);
+    ctx.set_symbol(name, type, get_loc());
     return type;
 }
 

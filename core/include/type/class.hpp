@@ -12,8 +12,8 @@ namespace TypeChecker {
 
 class Class final : public Type {
 public:
-    explicit Class(std::string name);
-    ~Class();
+    Class(std::string name, std::optional<yy::location> loc = {});
+    ~Class() override;
 
     [[nodiscard]] std::string
     get_name() const;

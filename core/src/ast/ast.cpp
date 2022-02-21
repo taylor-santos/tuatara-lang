@@ -9,13 +9,13 @@
 namespace AST {
 
 Node::Node(const yy::location &loc)
-    : loc_{std::make_unique<yy::location>(loc)} {}
+    : loc_{loc} {}
 
 Node::~Node() = default;
 
 const yy::location &
 Node::get_loc() const {
-    return *loc_;
+    return loc_;
 }
 
 } // namespace AST

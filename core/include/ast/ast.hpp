@@ -7,10 +7,7 @@
 #include <memory>
 
 #include "type/type.hpp"
-
-namespace yy {
-class location;
-}
+#include "location.hh"
 
 namespace TypeChecker {
 class Context;
@@ -34,7 +31,7 @@ public:
     get_type(TypeChecker::Context &ctx) const = 0;
 
 private:
-    std::unique_ptr<yy::location> loc_;
+    yy::location loc_;
 };
 
 } // namespace AST

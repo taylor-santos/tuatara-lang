@@ -6,7 +6,8 @@
 
 namespace TypeChecker {
 
-Error::Error() = default;
+Error::Error(yy::location loc)
+    : Type(loc) {}
 
 Error::~Error() = default;
 

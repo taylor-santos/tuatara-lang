@@ -7,49 +7,81 @@
 #include <sstream>
 #include <algorithm>
 
-#include "scanner.hpp"
-#include "parser.hpp"
 #include "type/type_checker.hpp"
+#include "driver.hpp"
+
+TEST_SUITE_BEGIN("TypeChecker");
 
 TEST_CASE("uninitialized variable") {
-    auto code = R"(
+    auto input    = std::stringstream();
+    auto output   = std::stringstream();
+    auto driver   = Driver(input, output);
+    auto filename = std::string("test");
+
+    input << R"(
     foo :: U64;
     bar := foo;
     )";
 
-    auto input   = std::istringstream(code);
-    auto lines   = LineStream(input);
-    auto scanner = yy::Scanner("test", lines);
-    auto out     = std::ostringstream();
-    auto ast     = std::vector<std::unique_ptr<AST::Expression>>();
-    auto failed  = false;
-    auto parser  = yy::Parser(scanner, out, lines.lines(), ast, failed);
-    auto ctx     = TypeChecker::Context(out);
-    parser.parse();
-
-    std::for_each(ast.begin(), ast.end(), [&ctx](auto &expr) { (void)expr->get_type(ctx); });
+    driver.parse(&filename);
+    auto ctx = driver.type_check();
     CHECK(ctx.did_fail());
-    CHECK(out.str() == "test:3.12-14: `foo` used before initialization\n");
+    auto &errors = driver.errors();
+    REQUIRE(errors.size() == 1);
+    auto &msg = errors[0].message_;
+    REQUIRE(msg.size() == 2);
+    CHECK(msg[1].message_ == "`foo` used before initialization");
+    auto &details = errors[0].details_;
+    REQUIRE(details.size() == 2);
+    CHECK(details[0].message_ == "`foo` declared without being initialized here");
+    CHECK(details[1].message_ == "`foo` used here");
 }
 
 TEST_CASE("moved variable") {
-    auto code = R"(
+    auto input    = std::stringstream();
+    auto output   = std::stringstream();
+    auto driver   = Driver(input, output);
+    auto filename = std::string("test");
+
+    input << R"(
     foo := 123;
     bar := foo;
     baz := foo;
     )";
 
-    auto input   = std::istringstream(code);
-    auto lines   = LineStream(input);
-    auto scanner = yy::Scanner("test", lines);
-    auto out     = std::ostringstream();
-    auto ast     = std::vector<std::unique_ptr<AST::Expression>>();
-    auto failed  = false;
-    auto parser  = yy::Parser(scanner, out, lines.lines(), ast, failed);
-    auto ctx     = TypeChecker::Context(out);
-    parser.parse();
-
-    std::for_each(ast.begin(), ast.end(), [&ctx](auto &expr) { expr->get_type(ctx); });
+    driver.parse(&filename);
+    auto ctx = driver.type_check();
     CHECK(ctx.did_fail());
-    CHECK(out.str() == "test:4.12-14: `foo` used after being moved\n");
+    auto &errors = driver.errors();
+    REQUIRE(errors.size() == 1);
+    auto &msg = errors[0].message_;
+    REQUIRE(msg.size() == 2);
+    CHECK(msg[1].message_ == "`foo` used after being moved");
+    auto &details = errors[0].details_;
+    REQUIRE(details.size() == 3);
+    CHECK(details[0].message_ == "value assigned to `foo` here");
+    CHECK(details[1].message_ == "value moved out of `foo` here");
+    CHECK(details[2].message_ == "`foo` used here after move");
+}
+
+TEST_CASE("print symbol table") {
+    auto input    = std::stringstream();
+    auto output   = std::stringstream();
+    auto driver   = Driver(input, output);
+    auto filename = std::string("test");
+
+    input << R"(
+    foo := 123;
+    bar := foo;
+    baz := foo;
+    )";
+    driver.parse(&filename);
+    auto ctx   = driver.type_check();
+    auto print = std::stringstream();
+    ctx.print_symbols(print);
+    CHECK(
+        print.str() == "Symbol Type\n"
+                       "baz    [object [class U64]]\n"
+                       "bar    [object [class U64]]\n"
+                       "foo    [object [class U64]] (uninitialized)\n");
 }

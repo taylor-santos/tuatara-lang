@@ -12,11 +12,12 @@ TEST_SUITE_BEGIN("Scanner");
 
 TEST_CASE("scanner constructs without exception") {
     GIVEN("an input and output stream") {
-        auto iss   = std::istringstream();
-        auto lines = LineStream(iss);
+        auto iss      = std::istringstream();
+        auto lines    = LineStream(iss);
+        auto filename = std::string("test");
         WHEN("a scanner is constructed") {
             THEN("it should not throw an exception") {
-                CHECK_NOTHROW(auto scanner = yy::Scanner("test", lines));
+                CHECK_NOTHROW(auto scanner = yy::Scanner(&filename, lines));
             }
         }
     }
@@ -24,9 +25,10 @@ TEST_CASE("scanner constructs without exception") {
 
 TEST_CASE("scanner's scan method returns EOF on empty input") {
     GIVEN("a scanner constructed from an empty stream") {
-        auto iss     = std::istringstream();
-        auto lines   = LineStream(iss);
-        auto scanner = yy::Scanner("test", lines);
+        auto iss      = std::istringstream();
+        auto lines    = LineStream(iss);
+        auto filename = std::string("test");
+        auto scanner  = yy::Scanner(&filename, lines);
         WHEN("the scanner's scan method is invoked") {
             auto symbol = scanner.scan();
             THEN("it should return an EOF token") {
@@ -37,9 +39,10 @@ TEST_CASE("scanner's scan method returns EOF on empty input") {
 }
 
 TEST_CASE("scanner should output an error when lexing an unrecognized character") {
-    auto iss     = std::stringstream();
-    auto lines   = LineStream(iss);
-    auto scanner = yy::Scanner("test", lines);
+    auto iss      = std::stringstream();
+    auto lines    = LineStream(iss);
+    auto filename = std::string("test");
+    auto scanner  = yy::Scanner(&filename, lines);
     GIVEN("an input containing an unrecognized character") {
         iss << "\200";
         WHEN("the scanner's scan method is invoked") {
@@ -54,9 +57,10 @@ TEST_CASE("scanner should output an error when lexing an unrecognized character"
 }
 
 TEST_CASE("white space should be ignored") {
-    auto iss     = std::stringstream();
-    auto lines   = LineStream(iss);
-    auto scanner = yy::Scanner("test", lines);
+    auto iss      = std::stringstream();
+    auto lines    = LineStream(iss);
+    auto filename = std::string("test");
+    auto scanner  = yy::Scanner(&filename, lines);
     GIVEN("an input containing only white space") {
         iss << " \t\n\r";
         WHEN("the scanner's scan method is invoked") {
@@ -69,9 +73,10 @@ TEST_CASE("white space should be ignored") {
 }
 
 TEST_CASE("line numbers should be properly tracked") {
-    auto iss     = std::stringstream();
-    auto lines   = LineStream(iss);
-    auto scanner = yy::Scanner("test", lines);
+    auto iss      = std::stringstream();
+    auto lines    = LineStream(iss);
+    auto filename = std::string("test");
+    auto scanner  = yy::Scanner(&filename, lines);
 
     std::list cases{
         std::pair{"CR", "foo\rbar\r\rbaz"},
@@ -108,9 +113,10 @@ TEST_CASE("line numbers should be properly tracked") {
 }
 
 TEST_CASE("u64 ints should be tokenized correctly") {
-    auto iss     = std::stringstream();
-    auto lines   = LineStream(iss);
-    auto scanner = yy::Scanner("test", lines);
+    auto iss      = std::stringstream();
+    auto lines    = LineStream(iss);
+    auto filename = std::string("test");
+    auto scanner  = yy::Scanner(&filename, lines);
 
     // Cases
     std::list cases{
@@ -147,9 +153,10 @@ TEST_CASE("u64 ints should be tokenized correctly") {
 }
 
 TEST_CASE("int out of 64-bit range should throw") {
-    auto iss     = std::stringstream();
-    auto lines   = LineStream(iss);
-    auto scanner = yy::Scanner("test", lines);
+    auto iss      = std::stringstream();
+    auto lines    = LineStream(iss);
+    auto filename = std::string("test");
+    auto scanner  = yy::Scanner(&filename, lines);
     GIVEN("an int larger than the 64-bit limit") {
         iss << "18_446_744_073_709_551_616";
         WHEN("the scanner's scan method is invoked") {
@@ -164,9 +171,10 @@ TEST_CASE("int out of 64-bit range should throw") {
 }
 
 TEST_CASE("valid identifiers") {
-    auto iss     = std::stringstream();
-    auto lines   = LineStream(iss);
-    auto scanner = yy::Scanner("test", lines);
+    auto iss      = std::stringstream();
+    auto lines    = LineStream(iss);
+    auto filename = std::string("test");
+    auto scanner  = yy::Scanner(&filename, lines);
 
     // Cases
     std::list cases{
@@ -200,9 +208,10 @@ TEST_CASE("valid identifiers") {
 }
 
 TEST_CASE("valid type names") {
-    auto iss     = std::stringstream();
-    auto lines   = LineStream(iss);
-    auto scanner = yy::Scanner("test", lines);
+    auto iss      = std::stringstream();
+    auto lines    = LineStream(iss);
+    auto filename = std::string("test");
+    auto scanner  = yy::Scanner(&filename, lines);
 
     // Cases
     std::list cases{

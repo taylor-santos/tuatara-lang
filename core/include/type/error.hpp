@@ -10,8 +10,8 @@ namespace TypeChecker {
 
 class Error final : public Type {
 public:
-    Error();
-    ~Error();
+    explicit Error(yy::location loc);
+    ~Error() override;
 
     void
     print(std::ostream &os) const override;

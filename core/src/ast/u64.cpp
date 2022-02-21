@@ -30,7 +30,8 @@ U64::to_json(std::ostream &os) const {
 
 const TypeChecker::Type &
 U64::get_type(TypeChecker::Context &ctx) const {
-    return ctx.add_type(std::make_unique<TypeChecker::Object>(TypeChecker::Context::builtins.U64));
+    return ctx.add_type(
+        std::make_unique<TypeChecker::Object>(TypeChecker::Context::builtins.U64, get_loc()));
 }
 
 } // namespace AST

@@ -6,6 +6,7 @@
 #include "ast/type.hpp"
 #include "json.hpp"
 #include "type/type_checker.hpp"
+#include "type/error.hpp"
 
 #include <utility>
 #include <ostream>
@@ -45,16 +46,23 @@ TypeDefinition::get_type(TypeChecker::Context &ctx) const {
     auto name = get_name();
     auto prev = ctx.get_symbol(name);
     if (prev) {
-        // TODO: Proper error handling
+        using namespace print;
         ctx.set_failure(true);
-        std::stringstream ss;
-        ss << "`" << name << "` already defined as ";
-        prev->get().print(ss);
-        throw std::runtime_error(ss.str());
+        auto message = Message::error(get_loc().begin)
+                           .with_message("`" + name + "` already defined")
+                           .in(color::bold_gray);
+        auto prev_loc = prev->get().get_loc();
+        if (prev_loc) {
+            message.with_detail_at(*prev_loc)
+                .with_message("previous definition of `" + name + "` here")
+                .in(color::bold_yellow);
+        }
+        ctx.add_message(message);
+        return ctx.add_type(std::make_unique<TypeChecker::Error>(get_loc()));
     }
     auto &type = type_->get_type(ctx);
     using namespace TypeChecker;
-    ctx.set_symbol(name, type, Uninit{Uninit::Reason::NOT_DEFINED, *this});
+    ctx.set_symbol(name, type, get_loc(), Uninit{Uninit::Reason::NOT_DEFINED, *this});
     return type;
 }
 

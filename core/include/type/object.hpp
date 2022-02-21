@@ -13,8 +13,8 @@ namespace TypeChecker {
 
 class Object final : public Type {
 public:
-    Object(const Class &cl);
-    ~Object();
+    Object(const Class &cl, yy::location loc);
+    ~Object() override;
 
     [[nodiscard]] const Class &
     get_class() const;

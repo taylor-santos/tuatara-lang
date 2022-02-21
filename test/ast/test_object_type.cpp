@@ -4,41 +4,57 @@
 
 #include "doctest/doctest.h"
 
-#include "location.hh"
-#include "ast/object_type.hpp"
 #include "type/type_checker.hpp"
 #include "type/object.hpp"
+#include "driver.hpp"
 
-#include <sstream>
+TEST_SUITE_BEGIN("AST/ObjectType");
 
-TEST_CASE("AST ObjectType get_type") {
-    auto loc = yy::location{};
-    auto out = std::ostringstream();
+TEST_CASE("get_type") {
+    auto loc    = yy::location();
+    auto errors = std::vector<print::Error>();
+    auto ctx    = TypeChecker::Context(errors);
+
     GIVEN("a valid class name") {
-        auto u64 = AST::ObjectType("U64", loc, loc);
-        auto ctx = TypeChecker::Context(out);
+        auto node = AST::ObjectType("U64", loc, loc);
 
-        WHEN("the object is type checked") {
-            auto &type = u64.get_type(ctx);
-            auto  obj  = dynamic_cast<const TypeChecker::Object *>(&type);
+        WHEN("the type checker is run") {
+            auto &type = node.get_type(ctx);
 
-            THEN("it should have object type") {
-                REQUIRE(obj != nullptr);
+            THEN("the type checker should succeed") {
+                CHECK(!ctx.did_fail());
+                CHECK(errors.empty());
 
-                AND_THEN("the correct class is found") {
-                    auto &cl = obj->get_class();
-                    CHECK(cl.get_name() == "U64");
+                AND_THEN("it should have object type") {
+                    auto obj = dynamic_cast<const TypeChecker::Object *>(&type);
+                    REQUIRE(obj != nullptr);
+
+                    AND_THEN("the correct class is found") {
+                        auto &cl = obj->get_class();
+                        CHECK(cl.get_name() == "U64");
+                    }
                 }
             }
         }
     }
     GIVEN("an invalid class name") {
-        auto u64 = AST::ObjectType("Foobar", loc, loc);
-        auto ctx = TypeChecker::Context(out);
+        auto node = AST::ObjectType("Foo", loc, loc);
 
-        WHEN("the object is type checked") {
-            THEN("it should throw a type error") {
-                CHECK_THROWS((void)u64.get_type(ctx));
+        WHEN("the type checker is run") {
+            auto &type = node.get_type(ctx);
+
+            THEN("the type checker should fail") {
+                CHECK(ctx.did_fail());
+
+                AND_THEN("an error should be emitted") {
+                    REQUIRE(errors.size() == 1);
+                    auto &msg = errors[0].message_;
+                    REQUIRE(msg.size() == 2);
+                    CHECK(msg[1].message_ == "`Foo` does not name a type");
+                    auto &details = errors[0].details_;
+                    REQUIRE(details.size() == 1);
+                    CHECK(details[0].message_ == "used here");
+                }
             }
         }
     }

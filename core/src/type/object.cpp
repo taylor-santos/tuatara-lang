@@ -6,8 +6,9 @@
 
 namespace TypeChecker {
 
-Object::Object(const Class &cl)
-    : class_{cl} {}
+Object::Object(const Class &cl, yy::location loc)
+    : Type(loc)
+    , class_{cl} {}
 
 Object::~Object() = default;
 
