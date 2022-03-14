@@ -20,7 +20,7 @@ namespace yy {
 
 class Scanner : public yyFlexLexer {
 public:
-    Scanner(std::string path, LineStream &input);
+    Scanner(const std::string *path, LineStream &input);
     ~Scanner() override;
 
     Scanner(const Scanner &) = delete;
@@ -35,7 +35,6 @@ public:
 
 private:
     location    loc_;
-    std::string path_;
     LineStream &input_;
 };
 

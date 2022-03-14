@@ -9,16 +9,23 @@ set(TEST_SOURCES
         test_parser.cpp
         test_line_stream.cpp
         test_type_checker.cpp
+        test_printer.cpp
         ast/test_u64.cpp
         ast/test_error.cpp
         ast/test_object_type.cpp
         ast/test_type_definition.cpp
         ast/test_value_definition.cpp
-        ast/test_variable.cpp)
+        ast/test_variable.cpp
+        type/test_class.cpp
+        type/test_error.cpp
+        type/test_object.cpp)
 
 add_executable(${TEST_NAME}
         ${TEST_SOURCES}
         test_main.cpp)
+
+target_include_directories(${TEST_NAME}
+        PRIVATE .)
 
 target_link_libraries(${TEST_NAME}
         PRIVATE core

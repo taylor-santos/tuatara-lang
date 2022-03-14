@@ -3,10 +3,8 @@
 %locations
 %defines
 %parse-param {class Scanner &scanner}
-%parse-param {std::ostream &output}
-%parse-param {const std::vector<std::string> &lines}
+%parse-param {std::vector<print::Message> &errors}
 %parse-param {std::vector<std::unique_ptr<AST::Expression>> &ast_out}
-%parse-param {bool &parse_failure}
 
 %define api.namespace {yy}
 %define api.parser.class {Parser}
@@ -15,7 +13,7 @@
 %define api.value.automove
 %define parse.assert
 %define parse.trace
-%define parse.error verbose
+%define parse.error custom
 %define parse.lac full
 %define api.token.prefix {TOK_}
 
@@ -35,6 +33,7 @@
 #endif
 
 #include "ast/ast_includes.hpp"
+#include "printer.hpp"
 
 } // %code requires
 
@@ -75,7 +74,6 @@
 
 %initial-action {
     // Invoked before parsing each time parse() is called.
-    parse_failure = false;
 }
 
 /* TOKENS */
@@ -86,7 +84,7 @@
     DEFINE      ":="
 
 %token<uint64_t>
-    U64     "u64"
+    U64     "`U64` literal"
 
 %token<std::string>
     IDENT       "identifier"
@@ -96,6 +94,7 @@
     expressions
 
 %type<std::unique_ptr<AST::Expression>>
+    line
     expression
 
 %type<std::unique_ptr<AST::Definition>>
@@ -120,16 +119,35 @@ file
     }
     | expressions {
         ast_out = $1;
-        if (parse_failure) YYABORT;
     }
 
 expressions
-    : expression ";" {
+    : line {
         $$.emplace_back($1);
     }
-    | expressions expression ";" {
+    | expressions line {
         $$ = $1;
         $$.emplace_back($2);
+    }
+
+line
+    : expression ";" {
+        $$ = $1;
+    }
+    | "identifier" ":=" error ";" {
+        $$ = NODE(ValueDefinition, $1, @1, NODE(Error, @3), @$);
+    }
+    | "identifier" ":=" expression error ";" {
+        $$ = NODE(ValueDefinition, $1, @1, $3, @$);
+    }
+    | "identifier" "::" type error ";" {
+        $$ = NODE(TypeDefinition, $1, @1, $3, @$);
+    }
+    | "identifier" "::" error ";" {
+        $$ = NODE(TypeDefinition, $1, @1, NODE(Error, @3), @$);
+    }
+    | error ";" {
+        $$ = NODE(Error, @1);
     }
 
 expression
@@ -155,21 +173,15 @@ simple_expression
     | "identifier" {
         $$ = NODE(Variable, $1, @$);
     }
-    | error {
-        $$ = NODE(Error, @$);
-    }
 
 literal
-    : "u64" {
+    : "`U64` literal" {
         $$ = NODE(U64, $1, @$);
     }
 
 type
     : "type name" {
         $$ = NODE(ObjectType, $1, @1, @$);
-    }
-    | error {
-        $$ = NODE(Error, @$);
     }
 
 %%
@@ -180,38 +192,129 @@ type
 
 namespace yy {
 
+static std::vector<print::colored_text>
+symbol_kind_name(const yy::Parser::symbol_kind_type &kind) {
+    using namespace print;
+    switch (kind) {
+        case Parser::symbol_kind::S_SEMICOLON:
+            return {
+                {"`", color::bold_gray},
+                {";", color::bold_red},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_TYPE_DECL:
+            return {
+                {"`", color::bold_gray},
+                {"::", color::bold_red},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_DEFINE:
+            return {
+                {"`", color::bold_gray},
+                {":=", color::bold_red},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_U64:
+            return {{"`U64` literal", color::bold_gray}};
+        case Parser::symbol_kind::S_IDENT:
+            return {{"identifier", color::bold_gray}};
+        case Parser::symbol_kind::S_TYPENAME:
+            return {{"type name", color::bold_gray}};
+        case Parser::symbol_kind::S_YYEMPTY:
+        case Parser::symbol_kind::S_YYEOF:
+        case Parser::symbol_kind::S_YYerror:
+        case Parser::symbol_kind::S_YYUNDEF:
+        case Parser::symbol_kind::S_YYACCEPT:
+        case Parser::symbol_kind::S_file:
+        case Parser::symbol_kind::S_expressions:
+        case Parser::symbol_kind::S_line:
+        case Parser::symbol_kind::S_expression:
+        case Parser::symbol_kind::S_definition:
+        case Parser::symbol_kind::S_simple_expression:
+        case Parser::symbol_kind::S_literal:
+        case Parser::symbol_kind::S_type:
+            break;
+    }
+    return {{yy::Parser::symbol_name(kind), color::bold_gray}};
+}
+
+static std::vector<print::colored_text>
+symbol_type_name(const yy::Parser::symbol_type &tok) {
+    using namespace print;
+    auto kind = tok.kind();
+    switch (kind) {
+        case Parser::symbol_kind::S_U64:
+            return {
+                {"`U64` literal `", color::bold_gray},
+                {std::to_string(tok.value.as<std::uint64_t>()), color::bold_red},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_IDENT:
+            return {
+                {"identifier `", color::bold_gray},
+                {tok.value.as<std::string>(), color::bold_red},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_TYPENAME:
+            return {
+                {"type name `", color::bold_gray},
+                {tok.value.as<std::string>(), color::bold_red},
+                {"`", color::bold_gray}
+            };
+        default:
+            break;
+    }
+    return symbol_kind_name(kind);
+}
+
+void
+Parser::report_syntax_error(yy::Parser::context const &ctx) const {
+    using namespace print;
+
+    auto &loc = ctx.location();
+    // auto  tok = ctx.token();
+    auto &lah = ctx.lookahead();
+    auto  num = ctx.expected_tokens(nullptr, 0);
+    auto  exp = std::vector<Parser::symbol_kind_type>(num);
+    ctx.expected_tokens(&exp[0], num);
+
+    auto message = Message::error(loc.begin)
+                   .with_message("expected ", color::bold_gray);
+    std::string sep;
+    for (size_t i = 0; i < exp.size() - 1; i++) {
+        message.with_message(sep, color::bold_gray);
+        for (auto s : symbol_kind_name(exp[i])) {
+            message.with_message(s);
+        }
+        sep = ", ";
+    }
+    if (exp.size() > 1) {
+        message.with_message(" or ", color::bold_gray);
+    }
+    for (auto s : symbol_kind_name(exp.back())) {
+        message.with_message(s);
+    }
+    message.with_message(", found ", color::bold_gray);
+    for (auto s : symbol_type_name(lah)) {
+        message.with_message(s);
+    }
+    message.with_detail(loc, color::bold_red)
+           .with_message("unexpected ", color::bold_gray);
+    for (auto m : symbol_type_name(lah)) {
+        message.with_message(m);
+    }
+    errors.push_back(message);
+}
+
 void
 Parser::error(const location &loc, const std::string &message) {
-    if (loc.begin.filename) output << *loc.begin.filename << ":";
-    output << loc.begin.line << ":" << loc.begin.column << "-";
-    if (loc.end.filename && loc.end.filename != loc.begin.filename) output << *loc.end.filename << ":";
-    output << loc.end.line << ":" << loc.end.column;
-    output << " " << message << std::endl;
-
-    auto num_width = static_cast<int>(std::to_string(loc.end.line).size());
-    auto begin_line = std::max(loc.begin.line - 1, 1);
-    auto end_line = loc.end.line;
-
-    for (auto line_no = begin_line; line_no <= end_line; line_no++) {
-        auto line = lines[line_no - 1];
-        auto first = line.find_first_not_of(' ');
-        if (first == std::string::npos) continue;
-
-        output << std::setw(num_width) << std::right << line_no << " | ";
-        output << line << std::endl;
-
-        if (line_no < loc.begin.line || loc.end.line < line_no) continue;
-
-        first = std::max((int)first, (line_no == loc.begin.line) ? (loc.begin.column - 1) : 0);
-        auto last = (line_no < end_line) ? line.find_last_not_of(' ') : (loc.end.column - 1);
-
-        output << std::string(num_width, ' ') << " | ";
-        output << std::string(first, ' ');
-        output << std::string(last - first, '~') << std::endl;
-
-    }
-
-    parse_failure = true;
+    using namespace print;
+    errors.push_back(
+        Message::error(loc.begin)
+                .with_message(message, color::bold_gray)
+                .with_detail(loc, color::bold_red)
+                .with_message(message, color::bold_gray)
+    );
 }
 
-}
+} // namespace yy

@@ -124,11 +124,10 @@ throw_unrecognized_char(char c, yy::location loc) {
 
 namespace yy {
 
-Scanner::Scanner(std::string path, LineStream &input)
+Scanner::Scanner(const std::string *path, LineStream &input)
     : yyFlexLexer()
-    , path_{std::move(path)}
     , input_{input} {
-    loc_.initialize(&path_);
+    loc_.initialize(path);
     switch_streams(&input_);
 }
 

@@ -5,6 +5,7 @@
 #include "type/type_checker.hpp"
 #include "type/class.hpp"
 #include "location.hh"
+#include "printer.hpp"
 
 #include <ostream>
 #include <iomanip>
@@ -14,10 +15,12 @@ namespace TypeChecker {
 
 Context::Builtins Context::builtins = {.U64 = TypeChecker::Class("U64")};
 
-Context::Context(std::ostream &out)
-    : out_{out} {
+Context::Context(std::vector<print::Message> &errors)
+    : errors_{errors} {
     classes_["U64"] = &builtins.U64;
 }
+
+Context::Context(Context &&other) = default;
 
 Context::~Context() = default;
 
@@ -27,34 +30,52 @@ Context::add_type(std::unique_ptr<Type> type) {
     return *types_.back();
 }
 
-std::optional<std::reference_wrapper<const Type>>
+const Type *
 Context::get_symbol(const std::string &name) const {
     auto it = symbols_.find(name);
-    if (it == symbols_.end()) {
-        return {};
-    }
-    return it->second.type;
+    return (it == symbols_.end()) ? nullptr : &it->second.type;
 }
 
 std::optional<Uninit>
 Context::is_uninitialized(const std::string &symbol) const {
     auto it = symbols_.find(symbol);
-    return (it == symbols_.end()) ? std::nullopt : it->second.uninit_reason;
+    return (it == symbols_.end()) ? std::nullopt : std::optional{it->second.uninit_reason};
+}
+
+std::optional<yy::location>
+Context::get_symbol_loc(const std::string &symbol) const {
+    auto it = symbols_.find(symbol);
+    return (it == symbols_.end()) ? std::nullopt : std::optional{it->second.init_loc};
 }
 
 void
-Context::set_symbol(const std::string &name, const Type &type) {
-    symbols_.erase(name);
-    symbols_.emplace(name, Context::symbol{type, {}});
+Context::set_symbol(const std::string &name, const Type &type, yy::location init_loc) {
+    auto it = symbols_.find(name);
+    if (it != symbols_.end()) {
+        // Keep the original symbol init location
+        // TODO: This might interfere with nested scopes?
+        //       Keeping the old location should be more explicit
+        init_loc = it->second.init_loc;
+        symbols_.erase(name);
+    }
+    symbols_.emplace(name, Context::symbol{type, {}, init_loc});
 }
 
 void
 Context::set_symbol(
     const std::string    &name,
     const Type           &type,
+    yy::location          init_loc,
     std::optional<Uninit> uninit_reason) {
-    symbols_.erase(name);
-    symbols_.emplace(name, Context::symbol{type, uninit_reason});
+    auto it = symbols_.find(name);
+    if (it != symbols_.end()) {
+        // Keep the original symbol init location
+        // TODO: This might interfere with nested scopes?
+        //       Keeping the old location should be more explicit
+        init_loc = it->second.init_loc;
+        symbols_.erase(name);
+    }
+    symbols_.emplace(name, Context::symbol{type, uninit_reason, init_loc});
 }
 
 std::optional<std::reference_wrapper<const Class>>
@@ -69,13 +90,15 @@ Context::get_class(const std::string &name) const {
 void
 Context::print_symbols(std::ostream &out) const {
     auto name_label = std::string("Symbol");
-    auto width      = std::max(
-        std::max_element(
-            symbols_.begin(),
-            symbols_.end(),
-            [](auto &a, auto &b) { return a.first.size() < b.first.size(); })
-            ->first.size(),
-        name_label.size());
+    auto width      = symbols_.empty()
+                          ? name_label.size()
+                          : std::max(
+                           std::max_element(
+                               symbols_.begin(),
+                               symbols_.end(),
+                               [](auto &a, auto &b) { return a.first.size() < b.first.size(); })
+                               ->first.size(),
+                           name_label.size());
     ;
     out << std::setw(width) << std::left << name_label << " Type" << std::endl;
     for (auto &[name, symbol] : symbols_) {
@@ -101,8 +124,8 @@ Context::did_fail() const {
 }
 
 void
-Context::report_error(yy::location loc, const std::string &message) const {
-    out_ << loc << ": " << message << std::endl;
+Context::add_message(const print::Message &message) const {
+    errors_.push_back(message);
 }
 
 } // namespace TypeChecker

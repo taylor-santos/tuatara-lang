@@ -12,8 +12,8 @@
 
 class ScannerMock : public yy::Scanner {
 public:
-    ScannerMock(bool &did_scan, LineStream &is)
-        : yy::Scanner("mock scanner", is)
+    ScannerMock(const std::string *filename, bool &did_scan, LineStream &is)
+        : yy::Scanner(filename, is)
         , did_scan_{did_scan} {}
     yy::Parser::symbol_type
     scan() override {
@@ -29,16 +29,17 @@ TEST_SUITE_BEGIN("Parser");
 
 TEST_CASE("parser constructs without exception") {
     GIVEN("a valid scanner") {
-        auto iss     = std::istringstream();
-        auto lines   = LineStream(iss);
-        auto scanner = yy::Scanner("test", lines);
-        auto oss     = std::ostringstream();
-        auto ast     = std::vector<std::unique_ptr<AST::Expression>>();
-        auto failed  = false;
+        auto iss      = std::istringstream();
+        auto lines    = LineStream(iss);
+        auto filename = std::string("test");
+        auto scanner  = yy::Scanner(&filename, lines);
+        auto errors   = std::vector<print::Message>();
+        auto ast      = std::vector<std::unique_ptr<AST::Expression>>();
+        auto failed   = false;
 
         WHEN("a parser is constructed") {
             THEN("it should not throw an exception") {
-                CHECK_NOTHROW(auto parser = yy::Parser(scanner, oss, lines.lines(), ast, failed));
+                CHECK_NOTHROW(auto parser = yy::Parser(scanner, errors, ast));
             }
         }
     }
@@ -49,11 +50,12 @@ TEST_CASE("parser parse method invokes scanner scan method") {
         bool did_scan = false;
         auto iss      = std::istringstream();
         auto lines    = LineStream(iss);
-        auto scanner  = ScannerMock(did_scan, lines);
-        auto oss      = std::ostringstream();
+        auto filename = std::string("test");
+        auto scanner  = ScannerMock(&filename, did_scan, lines);
+        auto errors   = std::vector<print::Message>();
         auto ast      = std::vector<std::unique_ptr<AST::Expression>>();
         auto failed   = false;
-        auto parser   = yy::Parser(scanner, oss, lines.lines(), ast, failed);
+        auto parser   = yy::Parser(scanner, errors, ast);
         WHEN("the parser's parse method is invoked") {
             parser.parse();
             THEN("it should call the scanner's scan method") {
@@ -64,27 +66,29 @@ TEST_CASE("parser parse method invokes scanner scan method") {
 }
 
 TEST_CASE("a scanner syntax error should be handled internally") {
-    auto iss     = std::stringstream();
-    auto lines   = LineStream(iss);
-    auto scanner = yy::Scanner("test", lines);
-    auto oss     = std::ostringstream();
-    auto ast     = std::vector<std::unique_ptr<AST::Expression>>();
-    auto failed  = false;
-    auto parser  = yy::Parser(scanner, oss, lines.lines(), ast, failed);
+    auto iss      = std::stringstream();
+    auto lines    = LineStream(iss);
+    auto filename = std::string("test");
+    auto scanner  = yy::Scanner(&filename, lines);
+    auto errors   = std::vector<print::Message>();
+    auto ast      = std::vector<std::unique_ptr<AST::Expression>>();
+    auto parser   = yy::Parser(scanner, errors, ast);
     GIVEN("an input containing an unrecognized character") {
         iss << "\200";
         WHEN("the input is parsed") {
             auto result = parser.parse();
             THEN("it should return a non-zero error code") {
                 CHECK(result != 0);
-                AND_THEN("the error flag should be set") {
-                    CHECK(failed == true);
-                    AND_THEN("the output stream should contain an error message") {
-                        CHECK(
-                            oss.str() == "test:1:1-1:2 stray '\\200' in program\n"
-                                         "1 | \200\n"
-                                         "  | ~\n");
-                    }
+                AND_THEN("an error message should be produced") {
+                    REQUIRE(errors.size() == 1);
+                    auto msg = std::stringstream();
+                    errors[0].print({""}, msg);
+                    CHECK(
+                        msg.str() == "error: stray '\\200' in program\n"
+                                     "  ╭─[test:1:1]\n"
+                                     "1 │ \n"
+                                     "  · ─ stray '\\200' in program\n"
+                                     "──╯\n");
                 }
             }
         }
@@ -92,13 +96,13 @@ TEST_CASE("a scanner syntax error should be handled internally") {
 }
 
 TEST_CASE("valid expressions") {
-    auto iss     = std::stringstream();
-    auto lines   = LineStream(iss);
-    auto scanner = yy::Scanner("test", lines);
-    auto oss     = std::ostringstream();
-    auto ast     = std::vector<std::unique_ptr<AST::Expression>>();
-    auto failed  = false;
-    auto parser  = yy::Parser(scanner, oss, lines.lines(), ast, failed);
+    auto iss      = std::stringstream();
+    auto lines    = LineStream(iss);
+    auto filename = std::string("test");
+    auto scanner  = yy::Scanner(&filename, lines);
+    auto errors   = std::vector<print::Message>();
+    auto ast      = std::vector<std::unique_ptr<AST::Expression>>();
+    auto parser   = yy::Parser(scanner, errors, ast);
 
     std::list<std::pair<const char *, std::vector<std::string>>> cases{
         {"foo :: U64;",
@@ -115,8 +119,8 @@ TEST_CASE("valid expressions") {
                 iss << input;
                 WHEN("the input is parsed") {
                     auto result = parser.parse();
-                    THEN("the error flag should be false") {
-                        CHECK(failed == false);
+                    THEN("the result should indicate success") {
+                        CHECK(result == 0);
                         AND_THEN(
                             "the produced AST should have the expected number of expressions") {
                             auto n = json_outputs.size();
@@ -128,8 +132,8 @@ TEST_CASE("valid expressions") {
                                     ast[i]->to_json(out);
                                     CHECK(out.str() == json_outputs[i]);
                                 }
-                                AND_THEN("the output stream should be empty") {
-                                    CHECK(oss.str() == "");
+                                AND_THEN("no errors should be produced") {
+                                    CHECK(errors.empty());
                                 }
                             }
                         }
@@ -141,48 +145,54 @@ TEST_CASE("valid expressions") {
 }
 
 TEST_CASE("expression error handling") {
-    auto iss     = std::stringstream();
-    auto lines   = LineStream(iss);
-    auto scanner = yy::Scanner("test", lines);
-    auto oss     = std::ostringstream();
-    auto ast     = std::vector<std::unique_ptr<AST::Expression>>();
-    auto failed  = false;
-    auto parser  = yy::Parser(scanner, oss, lines.lines(), ast, failed);
+    auto iss      = std::stringstream();
+    auto lines    = LineStream(iss);
+    auto filename = std::string("test");
+    auto scanner  = yy::Scanner(&filename, lines);
+    auto errors   = std::vector<print::Message>();
+    auto ast      = std::vector<std::unique_ptr<AST::Expression>>();
+    auto parser   = yy::Parser(scanner, errors, ast);
 
     auto json_outputs = std::vector<std::string>{
-        R"({"node":"error","location":{"begin":{"filename":"test","line":1,"column":1},"end":{"filename":"test","line":1,"column":11}}})",
-        R"({"node":"error","location":{"begin":{"filename":"test","line":2,"column":1},"end":{"filename":"test","line":2,"column":11}}})",
+        R"({"node":"value definition","location":{"begin":{"filename":"test","line":1,"column":1},"end":{"filename":"test","line":1,"column":12}},"name":"foo","name location":{"begin":{"filename":"test","line":1,"column":1},"end":{"filename":"test","line":1,"column":4}},"value":{"node":"error","location":{"begin":{"filename":"test","line":1,"column":8},"end":{"filename":"test","line":1,"column":11}}}})",
+        R"({"node":"type definition","location":{"begin":{"filename":"test","line":2,"column":1},"end":{"filename":"test","line":2,"column":12}},"name":"bar","name location":{"begin":{"filename":"test","line":2,"column":1},"end":{"filename":"test","line":2,"column":4}},"type":{"node":"error","location":{"begin":{"filename":"test","line":2,"column":8},"end":{"filename":"test","line":2,"column":11}}}})",
     };
 
     GIVEN("an input with more than one syntax error") {
         iss << "foo := U64;\nbar :: 123;";
         WHEN("the input is parsed") {
-            auto result = parser.parse();
-            THEN("an error code is returned") {
-                CHECK(result != 0);
-                CHECK(failed == true);
-                AND_THEN("both errors are reported") {
+            parser.parse();
+
+            THEN("both errors are reported") {
+                REQUIRE(errors.size() == 2);
+                {
+                    auto msg = std::stringstream();
+                    errors[0].print({"foo := U64;", "bar :: 123;"}, msg);
                     CHECK(
-                        oss.str() ==
-                        "test:1:8-1:11 syntax error, unexpected type name, expecting u64 or "
-                        "identifier\n"
-                        "1 | foo := U64;\n"
-                        "  |        ~~~\n"
-                        "test:2:8-2:11 syntax error, unexpected u64, expecting type name\n"
-                        "1 | foo := U64;\n"
-                        "2 | bar :: 123;\n"
-                        "  |        ~~~\n");
-                    AND_THEN("the produced ast should match the expected output") {
-                        auto n = json_outputs.size();
-                        REQUIRE(ast.size() == n);
-                        for (size_t i = 0; i < n; i++) {
-                            std::ostringstream out;
-                            ast[i]->to_json(out);
-                            CHECK(out.str() == json_outputs[i]);
-                        }
-                        AND_THEN("the error flag should be true") {
-                            CHECK(failed == true);
-                        }
+                        msg.str() ==
+                        "error: expected `U64` literal or identifier, found type name `U64`\n"
+                        "  ╭─[test:1:8]\n"
+                        "1 │ foo := U64;\n"
+                        "  ·        ─── unexpected type name `U64`\n"
+                        "──╯\n");
+                }
+                {
+                    auto msg = std::stringstream();
+                    errors[1].print({"foo := U64;", "bar :: 123;"}, msg);
+                    CHECK(
+                        msg.str() == "error: expected type name, found `U64` literal `123`\n"
+                                     "  ╭─[test:2:8]\n"
+                                     "2 │ bar :: 123;\n"
+                                     "  ·        ─── unexpected `U64` literal `123`\n"
+                                     "──╯\n");
+                }
+                AND_THEN("the produced ast should match the expected output") {
+                    auto n = json_outputs.size();
+                    REQUIRE(ast.size() == n);
+                    for (size_t i = 0; i < n; i++) {
+                        std::ostringstream out;
+                        ast[i]->to_json(out);
+                        CHECK(out.str() == json_outputs[i]);
                     }
                 }
             }

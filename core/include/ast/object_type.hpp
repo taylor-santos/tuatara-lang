@@ -22,8 +22,8 @@ public:
     get_type(TypeChecker::Context &ctx) const override;
 
 private:
-    std::string                   name_;
-    std::unique_ptr<yy::location> name_loc_;
+    std::string  name_;
+    yy::location name_loc_;
 };
 
 } // namespace AST

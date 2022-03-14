@@ -17,8 +17,10 @@ set(CORE_SOURCES
         type/error.cpp
         type/class.cpp
         type/object.cpp
+        driver.cpp
         json.cpp
-        line_stream.cpp)
+        line_stream.cpp
+        printer.cpp)
 
 set(CMAKE_FIND_USE_PACKAGE_ROOT_PATH ON)
 find_package(FLEX 2.6.4

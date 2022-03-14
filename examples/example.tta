@@ -1,3 +1,16 @@
-foo := 123;
-bar :: U64;
-baz := foo;
+used_after_move := 123;
+tmp00 := used_after_move;
+tmp01 := used_after_move;
+
+used_before_init :: U64;
+tmp02 := used_before_init;
+
+tmp03 := not_declared;
+
+tmp04 :: Unknown_type;
+
+already_defined_val := 123;
+already_defined_val := 456;
+
+already_defined_type :: U64;
+already_defined_type :: U64;

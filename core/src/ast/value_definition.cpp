@@ -6,6 +6,7 @@
 #include "json.hpp"
 #include "type/type_checker.hpp"
 #include "type/error.hpp"
+#include "printer.hpp"
 
 #include <utility>
 #include <ostream>
@@ -42,29 +43,31 @@ ValueDefinition::to_json(std::ostream &os) const {
 
 const TypeChecker::Type &
 ValueDefinition::get_type(TypeChecker::Context &ctx) const {
-    auto name = get_name();
-    auto prev = ctx.get_symbol(name);
-
-    auto &type = [&]() -> const TypeChecker::Type & {
-        try {
-            return value_->get_type(ctx);
-        } catch (std::exception &e) {
-            // TODO: Proper error handling
-            ctx.set_failure(true);
-            ctx.report_error(get_loc(), e.what());
-            return ctx.add_type(std::make_unique<TypeChecker::Error>());
-        }
-    }();
-
-    if (prev) { // TODO: Check if subtype
-        // TODO: Proper error handling
+    auto  name = get_name();
+    auto &type = value_->get_type(ctx);
+    auto  prev = ctx.get_symbol(name);
+    if (prev) {
+        using namespace print;
         ctx.set_failure(true);
-        std::stringstream ss;
-        ss << name << " already defined as ";
-        prev->get().print(ss);
-        throw std::runtime_error(ss.str());
+        auto message = Message::error(get_loc().begin)
+                           .with_message("variable `", color::bold_gray)
+                           .with_message(name, color::bold_red)
+                           .with_message("` already defined", color::bold_gray);
+        auto prev_loc = ctx.get_symbol_loc(name);
+        if (prev_loc) {
+            message.with_detail(*prev_loc, color::bold_yellow)
+                .with_message("previous definition of `", color::bold_gray)
+                .with_message(name, color::bold_yellow)
+                .with_message("` here", color::bold_gray);
+        }
+        message.with_detail(get_name_loc(), color::bold_red)
+            .with_message("redefined `", color::bold_gray)
+            .with_message(name, color::bold_red)
+            .with_message("` here", color::bold_gray);
+        ctx.add_message(message);
+        return ctx.add_type(std::make_unique<TypeChecker::Error>(get_loc()));
     }
-    ctx.set_symbol(name, type);
+    ctx.set_symbol(name, type, get_name_loc());
     return type;
 }
 

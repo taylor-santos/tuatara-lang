@@ -6,9 +6,15 @@
 
 namespace TypeChecker {
 
-Type::Type() = default;
+Type::Type(std::optional<yy::location> loc)
+    : loc_{loc} {}
 
 Type::~Type() = default;
+
+std::optional<yy::location>
+Type::get_loc() const {
+    return loc_;
+}
 
 std::ostream &
 operator<<(std::ostream &os, const Type &type) {

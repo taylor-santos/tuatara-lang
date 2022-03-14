@@ -5,10 +5,11 @@
 #include "ast/variable.hpp"
 #include "json.hpp"
 #include "type/type_checker.hpp"
+#include "type/error.hpp"
+#include "printer.hpp"
 
 #include <utility>
 #include <ostream>
-#include <sstream>
 
 namespace AST {
 
@@ -34,33 +35,73 @@ Variable::get_type(TypeChecker::Context &ctx) const {
     using namespace TypeChecker;
     auto type = ctx.get_symbol(name_);
     if (!type) {
-        // TODO: Proper error handling
+        using namespace print;
+
         ctx.set_failure(true);
-        throw std::runtime_error("`" + name_ + "` was not declared in this scope");
+        auto message = Message::error(get_loc().begin)
+                           .with_message("`", color::bold_gray)
+                           .with_message(name_, color::bold_red)
+                           .with_message("` was not declared in this scope", color::bold_gray)
+                           .with_detail(get_loc(), color::bold_red)
+                           .with_message("`", color::bold_gray)
+                           .with_message(name_, color::bold_red)
+                           .with_message("` used here", color::bold_gray);
+        ctx.add_message(message);
+        return ctx.add_type(std::make_unique<TypeChecker::Error>(get_loc()));
     } else {
-        auto &t      = type->get();
-        auto  uninit = ctx.is_uninitialized(name_);
+        auto uninit = ctx.is_uninitialized(name_);
         if (uninit) {
-            // TODO: Proper error handling
+            using namespace print;
+
             ctx.set_failure(true);
-            std::stringstream error;
+            auto loc     = get_loc();
+            auto def_loc = ctx.get_symbol_loc(name_);
+            auto message = Message::error(get_loc().begin);
             switch (uninit->reason) {
                 case Uninit::Reason::NOT_DEFINED:
-                    error << "`" << name_ << "` used before initialization";
+                    message.with_message("variable `", color::bold_gray)
+                        .with_message(name_, color::bold_red)
+                        .with_message("` used before initialization", color::bold_gray);
+                    message.with_detail(uninit->loc, color::bold_yellow)
+                        .with_message("`", color::bold_gray)
+                        .with_message(name_, color::bold_yellow)
+                        .with_message(
+                            "` declared without being initialized here",
+                            color::bold_gray);
+                    message.with_detail(loc, color::bold_red)
+                        .with_message("`", color::bold_gray)
+                        .with_message(name_, color::bold_red)
+                        .with_message("` used here", color::bold_gray);
                     break;
                 case Uninit::Reason::MOVED_FROM:
-                    error << "`" << name_ << "` used after being moved";
+                    message.with_message("variable `", color::bold_gray)
+                        .with_message(name_, color::bold_red)
+                        .with_message("` used after being moved", color::bold_gray);
+                    if (def_loc) {
+                        message.with_detail(*def_loc, color::bold_yellow)
+                            .with_message("value assigned to `", color::bold_gray)
+                            .with_message(name_, color::bold_yellow)
+                            .with_message("` here", color::bold_gray);
+                    }
+                    message.with_detail(uninit->loc, color::bold_yellow)
+                        .with_message("value moved out of `", color::bold_gray)
+                        .with_message(name_, color::bold_yellow)
+                        .with_message("` here", color::bold_gray);
+                    message.with_detail(loc, color::bold_red)
+                        .with_message("`", color::bold_gray)
+                        .with_message(name_, color::bold_red)
+                        .with_message("` used here after move", color::bold_gray);
                     break;
             }
-            ctx.report_error(get_loc(), error.str());
+            ctx.add_message(message);
             // We can fall through and return `t` here instead of an `Error` type, because the
             // expected type of the variable can still be known even though it isn't allowed to be
             // used. This is still a type error, but later type errors can still be inferred from
             // this type.
         } else {
-            ctx.set_symbol(name_, t, Uninit{Uninit::Reason::MOVED_FROM, *this});
+            ctx.set_symbol(name_, *type, get_loc(), Uninit{Uninit::Reason::MOVED_FROM, get_loc()});
         }
-        return t;
+        return *type;
     }
 }
 

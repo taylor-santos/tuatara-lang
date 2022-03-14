@@ -8,8 +8,9 @@
 
 namespace TypeChecker {
 
-Class::Class(std::string name)
-    : name_{std::move(name)} {}
+Class::Class(std::string name, std::optional<yy::location> loc)
+    : Type(loc)
+    , name_{std::move(name)} {}
 
 Class::~Class() = default;
 

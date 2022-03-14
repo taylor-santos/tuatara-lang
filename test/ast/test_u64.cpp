@@ -7,20 +7,25 @@
 #include "location.hh"
 #include "ast/u64.hpp"
 #include "type/type_checker.hpp"
+#include "type/class.hpp"
 #include "type/object.hpp"
+#include "printer.hpp"
 
 #include <sstream>
 
-TEST_CASE("AST U64 get_type") {
-    auto loc = yy::location{};
-    auto u64 = AST::U64(uint64_t(123), loc);
-    auto out = std::ostringstream();
-    auto ctx = TypeChecker::Context(out);
+TEST_SUITE_BEGIN("AST/U64");
 
-    auto &type = u64.get_type(ctx);
-    auto  obj  = dynamic_cast<const TypeChecker::Object *>(&type);
+TEST_CASE("get_type") {
+    auto  loc    = yy::location();
+    auto  errors = std::vector<print::Message>();
+    auto  ctx    = TypeChecker::Context(errors);
+    auto  u64    = AST::U64(uint64_t(123), loc);
+    auto &type   = u64.get_type(ctx);
+
+    REQUIRE(!ctx.did_fail());
+    auto obj = dynamic_cast<const TypeChecker::Object *>(&type);
     REQUIRE(obj != nullptr);
     auto &cl = obj->get_class();
     CHECK(cl.get_name() == "U64");
-    CHECK(out.str() == "");
+    CHECK(errors.empty());
 }
