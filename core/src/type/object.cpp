@@ -3,6 +3,7 @@
 //
 
 #include "type/object.hpp"
+#include "type/class.hpp"
 
 namespace TypeChecker {
 

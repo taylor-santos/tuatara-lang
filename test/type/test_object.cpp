@@ -4,6 +4,7 @@
 
 #include "doctest/doctest.h"
 
+#include "type/class.hpp"
 #include "type/object.hpp"
 
 #include <sstream>

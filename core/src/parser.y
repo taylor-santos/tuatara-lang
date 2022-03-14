@@ -192,21 +192,34 @@ type
 
 namespace yy {
 
-static std::string
+static std::vector<print::colored_text>
 symbol_kind_name(const yy::Parser::symbol_kind_type &kind) {
+    using namespace print;
     switch (kind) {
         case Parser::symbol_kind::S_SEMICOLON:
-            return "`;`";
+            return {
+                {"`", color::bold_gray},
+                {";", color::bold_red},
+                {"`", color::bold_gray}
+            };
         case Parser::symbol_kind::S_TYPE_DECL:
-            return "`::`";
+            return {
+                {"`", color::bold_gray},
+                {"::", color::bold_red},
+                {"`", color::bold_gray}
+            };
         case Parser::symbol_kind::S_DEFINE:
-            return "`:=`";
+            return {
+                {"`", color::bold_gray},
+                {":=", color::bold_red},
+                {"`", color::bold_gray}
+            };
         case Parser::symbol_kind::S_U64:
-            return "`U64` literal";
+            return {{"`U64` literal", color::bold_gray}};
         case Parser::symbol_kind::S_IDENT:
-            return "identifier";
+            return {{"identifier", color::bold_gray}};
         case Parser::symbol_kind::S_TYPENAME:
-            return "type name";
+            return {{"type name", color::bold_gray}};
         case Parser::symbol_kind::S_YYEMPTY:
         case Parser::symbol_kind::S_YYEOF:
         case Parser::symbol_kind::S_YYerror:
@@ -222,19 +235,32 @@ symbol_kind_name(const yy::Parser::symbol_kind_type &kind) {
         case Parser::symbol_kind::S_type:
             break;
     }
-    return yy::Parser::symbol_name(kind);
+    return {{yy::Parser::symbol_name(kind), color::bold_gray}};
 }
 
-static std::string
+static std::vector<print::colored_text>
 symbol_type_name(const yy::Parser::symbol_type &tok) {
+    using namespace print;
     auto kind = tok.kind();
     switch (kind) {
         case Parser::symbol_kind::S_U64:
-            return "`U64` literal `" + std::to_string(tok.value.as<std::uint64_t>()) + "`";
+            return {
+                {"`U64` literal `", color::bold_gray},
+                {std::to_string(tok.value.as<std::uint64_t>()), color::bold_red},
+                {"`", color::bold_gray}
+            };
         case Parser::symbol_kind::S_IDENT:
-            return "identifier `" + tok.value.as<std::string>() + "`";
+            return {
+                {"identifier `", color::bold_gray},
+                {tok.value.as<std::string>(), color::bold_red},
+                {"`", color::bold_gray}
+            };
         case Parser::symbol_kind::S_TYPENAME:
-            return "type name `" + tok.value.as<std::string>() + "`";
+            return {
+                {"type name `", color::bold_gray},
+                {tok.value.as<std::string>(), color::bold_red},
+                {"`", color::bold_gray}
+            };
         default:
             break;
     }
@@ -252,25 +278,32 @@ Parser::report_syntax_error(yy::Parser::context const &ctx) const {
     auto  exp = std::vector<Parser::symbol_kind_type>(num);
     ctx.expected_tokens(&exp[0], num);
 
-    std::stringstream msg;
-    msg << "expected ";
+    auto message = Message::error(loc.begin)
+                   .with_message("expected ", color::bold_gray);
     std::string sep;
     for (size_t i = 0; i < exp.size() - 1; i++) {
-        msg << sep << symbol_kind_name(exp[i]);
+        message.with_message(sep, color::bold_gray);
+        for (auto s : symbol_kind_name(exp[i])) {
+            message.with_message(s);
+        }
         sep = ", ";
     }
-    if (exp.size() > 1) msg << " or ";
-    msg << symbol_kind_name(exp.back());
-    msg << ", found " << symbol_type_name(lah);
-
-    errors.push_back(
-        Message::error(loc.begin)
-                .with_message(msg.str())
-                .in(color::bold_gray)
-                .with_detail_at(loc)
-                .with_message(std::string("unexpected ") + symbol_type_name(lah))
-                .in(color::bold_red)
-    );
+    if (exp.size() > 1) {
+        message.with_message(" or ", color::bold_gray);
+    }
+    for (auto s : symbol_kind_name(exp.back())) {
+        message.with_message(s);
+    }
+    message.with_message(", found ", color::bold_gray);
+    for (auto s : symbol_type_name(lah)) {
+        message.with_message(s);
+    }
+    message.with_detail(loc, color::bold_red)
+           .with_message("unexpected ", color::bold_gray);
+    for (auto m : symbol_type_name(lah)) {
+        message.with_message(m);
+    }
+    errors.push_back(message);
 }
 
 void
@@ -278,11 +311,9 @@ Parser::error(const location &loc, const std::string &message) {
     using namespace print;
     errors.push_back(
         Message::error(loc.begin)
-                .with_message(message)
-                .in(color::bold_gray)
-                .with_detail_at(loc)
-                .with_message(message)
-                .in(color::bold_red)
+                .with_message(message, color::bold_gray)
+                .with_detail(loc, color::bold_red)
+                .with_message(message, color::bold_gray)
     );
 }
 

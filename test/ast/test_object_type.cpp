@@ -5,14 +5,18 @@
 #include "doctest/doctest.h"
 
 #include "type/type_checker.hpp"
+#include "type/class.hpp"
 #include "type/object.hpp"
-#include "driver.hpp"
+#include "ast/object_type.hpp"
+#include "printer.hpp"
+
+#include <sstream>
 
 TEST_SUITE_BEGIN("AST/ObjectType");
 
 TEST_CASE("get_type") {
     auto loc    = yy::location();
-    auto errors = std::vector<print::Error>();
+    auto errors = std::vector<print::Message>();
     auto ctx    = TypeChecker::Context(errors);
 
     GIVEN("a valid class name") {
@@ -48,12 +52,14 @@ TEST_CASE("get_type") {
 
                 AND_THEN("an error should be emitted") {
                     REQUIRE(errors.size() == 1);
-                    auto &msg = errors[0].message_;
-                    REQUIRE(msg.size() == 2);
-                    CHECK(msg[1].message_ == "`Foo` does not name a type");
-                    auto &details = errors[0].details_;
-                    REQUIRE(details.size() == 1);
-                    CHECK(details[0].message_ == "used here");
+                    auto msg = std::stringstream();
+                    errors[0].print({""}, msg);
+                    CHECK(
+                        msg.str() == "error: `Foo` does not name a type\n"
+                                     "  ╭─[1:1]\n"
+                                     "1 │ \n"
+                                     "  · ▲ `Foo` used here\n"
+                                     "──╯\n");
                 }
             }
         }

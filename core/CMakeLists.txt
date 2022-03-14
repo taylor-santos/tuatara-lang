@@ -8,3 +8,6 @@ add_subdirectory(src)
 
 target_include_directories(core
         PUBLIC include)
+
+target_link_libraries(core
+        PUBLIC rang)

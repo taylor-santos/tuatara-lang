@@ -6,12 +6,12 @@
 
 #include <memory>
 
-#include "type/type.hpp"
 #include "location.hh"
 
 namespace TypeChecker {
+class Type;
 class Context;
-}
+} // namespace TypeChecker
 
 namespace AST {
 

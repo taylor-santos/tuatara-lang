@@ -7,6 +7,7 @@
 #include <utility>
 #include <vector>
 #include <variant>
+#include <queue>
 
 #include "location.hh"
 
@@ -71,11 +72,18 @@ struct TextColor {
     background bg = background::reset;
 
     TextColor() = default;
+    /* implicit */ TextColor(color col)
+        : fg{col} {}
+    TextColor(color col, background bg)
+        : fg{col}
+        , bg{bg} {}
     TextColor(color col, style style)
         : fg{col}
         , s{style} {}
-    /* implicit */ TextColor(color col)
-        : fg{col} {}
+    TextColor(color col, style style, background bg)
+        : fg{col}
+        , s{style}
+        , bg{bg} {}
 };
 
 struct colored_text {
@@ -85,6 +93,8 @@ struct colored_text {
     colored_text() = default;
     colored_text(std::string msg)
         : message{std::move(msg)} {}
+    colored_text(const char *msg)
+        : message(msg) {}
     colored_text(std::string msg, TextColor col)
         : message{std::move(msg)}
         , col{col} {}
@@ -94,8 +104,9 @@ std::ostream &
 operator<<(std::ostream &os, const colored_text &txt);
 
 struct detail {
-    yy::location loc;
-    colored_text message = {""};
+    yy::location              loc;
+    TextColor                 color;
+    std::vector<colored_text> message;
 
     inline bool
     operator<(const detail &other) const {
@@ -128,23 +139,23 @@ class Message::Builder {
 public:
     explicit Builder(yy::position pos);
 
-    operator Message() const;
+    /* implicit */ operator Message() const;
+
+    Builder &
+    with_message(const std::string &text, TextColor color);
 
     Builder &
     with_message(const std::string &text);
 
     Builder &
-    in(TextColor color);
+    with_message(const colored_text &text);
 
     Builder &
-    in(color color);
-
-    Builder &
-    with_detail_at(yy::location loc);
+    with_detail(yy::location loc, TextColor color);
 
 private:
-    Message       msg_;
-    colored_text *last_text = nullptr;
+    Message   msg_;
+    TextColor last_color_ = color::bold_gray;
 };
 
 } // namespace print

@@ -17,7 +17,7 @@ public:
     Type(const Type &) = delete;
     virtual ~Type();
 
-    std::optional<yy::location>
+    [[nodiscard]] std::optional<yy::location>
     get_loc() const;
 
     virtual void

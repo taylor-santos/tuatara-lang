@@ -7,20 +7,24 @@
 #include "location.hh"
 #include "ast/variable.hpp"
 #include "type/type_checker.hpp"
+#include "type/class.hpp"
 #include "type/object.hpp"
-#include "driver.hpp"
+#include "ast/error.hpp"
+#include "printer.hpp"
+
+#include <sstream>
 
 TEST_SUITE_BEGIN("AST/Variable");
 
 TEST_CASE("get_type") {
     auto loc    = yy::location();
-    auto errors = std::vector<print::Error>();
+    auto errors = std::vector<print::Message>();
     auto ctx    = TypeChecker::Context(errors);
 
     GIVEN("an initialized variable") {
         auto node     = AST::Variable("foo", loc);
         auto old_type = TypeChecker::Object(TypeChecker::Context::builtins.U64, loc);
-        ctx.set_symbol("foo", old_type);
+        ctx.set_symbol("foo", old_type, loc);
 
         WHEN("the variable is type checked") {
             auto &type = node.get_type(ctx);
@@ -36,11 +40,11 @@ TEST_CASE("get_type") {
     GIVEN("an uninitialized variable") {
         auto node     = AST::Variable("foo", loc);
         auto old_type = TypeChecker::Object(TypeChecker::Context::builtins.U64, loc);
-        auto old_node = AST::Error(loc);
         ctx.set_symbol(
             "foo",
             old_type,
-            TypeChecker::Uninit{TypeChecker::Uninit::Reason::NOT_DEFINED, old_node});
+            loc,
+            TypeChecker::Uninit{TypeChecker::Uninit::Reason::NOT_DEFINED, loc});
 
         WHEN("the variable is type checked") {
             auto &type = node.get_type(ctx);
@@ -56,14 +60,15 @@ TEST_CASE("get_type") {
 
                     AND_THEN("the correct error message should be produced") {
                         REQUIRE(errors.size() == 1);
-                        auto &msg = errors[0].message_;
-                        REQUIRE(msg.size() == 2);
-                        CHECK(msg[1].message_ == "`foo` used before initialization");
-                        auto &details = errors[0].details_;
-                        REQUIRE(details.size() == 2);
+                        auto msg = std::stringstream();
+                        errors[0].print({""}, msg);
                         CHECK(
-                            details[0].message_ == "`foo` declared without being initialized here");
-                        CHECK(details[1].message_ == "`foo` used here");
+                            msg.str() == "error: variable `foo` used before initialization\n"
+                                         "  ╭─[1:1]\n"
+                                         "1 │ \n"
+                                         "  · ▲ `foo` used here\n"
+                                         "  · ▲ `foo` declared without being initialized here\n"
+                                         "──╯\n");
                     }
                 }
             }
@@ -76,7 +81,8 @@ TEST_CASE("get_type") {
         ctx.set_symbol(
             "foo",
             old_type,
-            TypeChecker::Uninit{TypeChecker::Uninit::Reason::MOVED_FROM, old_node});
+            loc,
+            TypeChecker::Uninit{TypeChecker::Uninit::Reason::MOVED_FROM, loc});
 
         WHEN("the variable is type checked") {
             auto &type = node.get_type(ctx);
@@ -92,14 +98,16 @@ TEST_CASE("get_type") {
 
                     AND_THEN("the correct error message should be produced") {
                         REQUIRE(errors.size() == 1);
-                        auto &msg = errors[0].message_;
-                        REQUIRE(msg.size() == 2);
-                        CHECK(msg[1].message_ == "`foo` used after being moved");
-                        auto &details = errors[0].details_;
-                        REQUIRE(details.size() == 3);
-                        CHECK(details[0].message_ == "value assigned to `foo` here");
-                        CHECK(details[1].message_ == "value moved out of `foo` here");
-                        CHECK(details[2].message_ == "`foo` used here after move");
+                        auto msg = std::stringstream();
+                        errors[0].print({""}, msg);
+                        CHECK(
+                            msg.str() == "error: variable `foo` used after being moved\n"
+                                         "  ╭─[1:1]\n"
+                                         "1 │ \n"
+                                         "  · ▲ `foo` used here after move\n"
+                                         "  · ▲ value moved out of `foo` here\n"
+                                         "  · ▲ value assigned to `foo` here\n"
+                                         "──╯\n");
                     }
                 }
             }

@@ -6,13 +6,18 @@
 
 #include <istream>
 
+#include "type/type_checker.hpp"
 #include "line_stream.hpp"
-#include "scanner.hpp"
+
+namespace AST {
+class Expression;
+}
 
 class Driver {
 public:
     explicit Driver(std::istream &input);
     Driver(const Driver &) = delete;
+    ~Driver();
 
     bool
     parse(const std::string *filename);

@@ -3,19 +3,18 @@
 //
 
 #include "doctest/doctest.h"
+#include "driver.hpp"
+#include "printer.hpp"
 
 #include <sstream>
 #include <algorithm>
-
-#include "type/type_checker.hpp"
-#include "driver.hpp"
 
 TEST_SUITE_BEGIN("TypeChecker");
 
 TEST_CASE("uninitialized variable") {
     auto input    = std::stringstream();
     auto output   = std::stringstream();
-    auto driver   = Driver(input, output);
+    auto driver   = Driver(input);
     auto filename = std::string("test");
 
     input << R"(
@@ -28,19 +27,22 @@ TEST_CASE("uninitialized variable") {
     CHECK(ctx.did_fail());
     auto &errors = driver.errors();
     REQUIRE(errors.size() == 1);
-    auto &msg = errors[0].message_;
-    REQUIRE(msg.size() == 2);
-    CHECK(msg[1].message_ == "`foo` used before initialization");
-    auto &details = errors[0].details_;
-    REQUIRE(details.size() == 2);
-    CHECK(details[0].message_ == "`foo` declared without being initialized here");
-    CHECK(details[1].message_ == "`foo` used here");
+    auto msg = std::stringstream();
+    errors[0].print({"", "    foo :: U64;", "    bar := foo;"}, msg);
+    CHECK(
+        msg.str() == "error: variable `foo` used before initialization\n"
+                     "  ╭─[test:3:12]\n"
+                     "2 │     foo :: U64;\n"
+                     "  ·     ─── `foo` declared without being initialized here\n"
+                     "3 │     bar := foo;\n"
+                     "  ·            ─── `foo` used here\n"
+                     "──╯\n");
 }
 
 TEST_CASE("moved variable") {
     auto input    = std::stringstream();
     auto output   = std::stringstream();
-    auto driver   = Driver(input, output);
+    auto driver   = Driver(input);
     auto filename = std::string("test");
 
     input << R"(
@@ -54,20 +56,24 @@ TEST_CASE("moved variable") {
     CHECK(ctx.did_fail());
     auto &errors = driver.errors();
     REQUIRE(errors.size() == 1);
-    auto &msg = errors[0].message_;
-    REQUIRE(msg.size() == 2);
-    CHECK(msg[1].message_ == "`foo` used after being moved");
-    auto &details = errors[0].details_;
-    REQUIRE(details.size() == 3);
-    CHECK(details[0].message_ == "value assigned to `foo` here");
-    CHECK(details[1].message_ == "value moved out of `foo` here");
-    CHECK(details[2].message_ == "`foo` used here after move");
+    auto msg = std::stringstream();
+    errors[0].print({"", "    foo := 123;", "    bar := foo;", "    baz := foo;"}, msg);
+    CHECK(
+        msg.str() == "error: variable `foo` used after being moved\n"
+                     "  ╭─[test:4:12]\n"
+                     "2 │     foo := 123;\n"
+                     "  ·     ─── value assigned to `foo` here\n"
+                     "3 │     bar := foo;\n"
+                     "  ·            ─── value moved out of `foo` here\n"
+                     "4 │     baz := foo;\n"
+                     "  ·            ─── `foo` used here after move\n"
+                     "──╯\n");
 }
 
 TEST_CASE("print symbol table") {
     auto input    = std::stringstream();
     auto output   = std::stringstream();
-    auto driver   = Driver(input, output);
+    auto driver   = Driver(input);
     auto filename = std::string("test");
 
     input << R"(
@@ -81,7 +87,7 @@ TEST_CASE("print symbol table") {
     ctx.print_symbols(print);
     CHECK(
         print.str() == "Symbol Type\n"
-                       "baz    [object [class U64]]\n"
                        "bar    [object [class U64]]\n"
+                       "baz    [object [class U64]]\n"
                        "foo    [object [class U64]] (uninitialized)\n");
 }

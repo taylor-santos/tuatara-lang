@@ -8,6 +8,7 @@
 #include "json.hpp"
 #include "type/object.hpp"
 #include "type/error.hpp"
+#include "printer.hpp"
 
 #include <utility>
 #include <ostream>
@@ -41,11 +42,14 @@ ObjectType::get_type(TypeChecker::Context &ctx) const {
         using namespace print;
         ctx.set_failure(true);
         auto message = Message::error(get_loc().begin)
-                           .with_message("`" + name_ + "` does not name a type")
-                           .in(color::bold_gray)
-                           .with_detail_at(name_loc_)
-                           .with_message("used here")
-                           .in(color::bold_red);
+                           .with_message("`", color::bold_gray)
+                           .with_message(name_, color::bold_red)
+                           .with_message("` does not name a type", color::bold_gray)
+                           .with_detail(name_loc_, color::bold_red)
+                           .with_message("`", color::bold_gray)
+                           .with_message(name_, color::bold_red)
+                           .with_message("` used here", color::bold_gray);
+        ctx.add_message(message);
         return ctx.add_type(std::make_unique<TypeChecker::Error>(get_loc()));
     }
     return ctx.add_type(std::make_unique<TypeChecker::Object>(cl->get(), get_loc()));

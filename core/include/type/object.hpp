@@ -7,9 +7,10 @@
 #include <unordered_map>
 
 #include "type/type.hpp"
-#include "type/class.hpp"
 
 namespace TypeChecker {
+
+class Class;
 
 class Object final : public Type {
 public:

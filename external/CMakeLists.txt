@@ -6,6 +6,18 @@ set(FLEXLEXER_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include PARENT_SCOPE)
 set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
 
 #------------------------------------------------------------------------------------
+# Fetch rang
+#------------------------------------------------------------------------------------
+
+message(STATUS "Fetching rang...")
+FetchContent_Declare(
+        rang
+        GIT_REPOSITORY https://github.com/agauniyal/rang
+        GIT_TAG 09f2f05bea29d61b1df99e4b36f63d961156a580 # 3.2
+)
+FetchContent_MakeAvailable(rang)
+
+#------------------------------------------------------------------------------------
 # Fetch doctest
 #------------------------------------------------------------------------------------
 

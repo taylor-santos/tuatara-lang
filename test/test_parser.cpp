@@ -33,7 +33,7 @@ TEST_CASE("parser constructs without exception") {
         auto lines    = LineStream(iss);
         auto filename = std::string("test");
         auto scanner  = yy::Scanner(&filename, lines);
-        auto errors   = std::vector<print::Error>();
+        auto errors   = std::vector<print::Message>();
         auto ast      = std::vector<std::unique_ptr<AST::Expression>>();
         auto failed   = false;
 
@@ -52,7 +52,7 @@ TEST_CASE("parser parse method invokes scanner scan method") {
         auto lines    = LineStream(iss);
         auto filename = std::string("test");
         auto scanner  = ScannerMock(&filename, did_scan, lines);
-        auto errors   = std::vector<print::Error>();
+        auto errors   = std::vector<print::Message>();
         auto ast      = std::vector<std::unique_ptr<AST::Expression>>();
         auto failed   = false;
         auto parser   = yy::Parser(scanner, errors, ast);
@@ -70,7 +70,7 @@ TEST_CASE("a scanner syntax error should be handled internally") {
     auto lines    = LineStream(iss);
     auto filename = std::string("test");
     auto scanner  = yy::Scanner(&filename, lines);
-    auto errors   = std::vector<print::Error>();
+    auto errors   = std::vector<print::Message>();
     auto ast      = std::vector<std::unique_ptr<AST::Expression>>();
     auto parser   = yy::Parser(scanner, errors, ast);
     GIVEN("an input containing an unrecognized character") {
@@ -81,12 +81,14 @@ TEST_CASE("a scanner syntax error should be handled internally") {
                 CHECK(result != 0);
                 AND_THEN("an error message should be produced") {
                     REQUIRE(errors.size() == 1);
-                    auto &msg = errors[0].message_;
-                    REQUIRE(msg.size() == 2);
-                    CHECK(msg[1].message_ == "stray '\\200' in program");
-                    auto &details = errors[0].details_;
-                    REQUIRE(details.size() == 1);
-                    CHECK(details[0].message_ == "stray '\\200' in program");
+                    auto msg = std::stringstream();
+                    errors[0].print({""}, msg);
+                    CHECK(
+                        msg.str() == "error: stray '\\200' in program\n"
+                                     "  ╭─[test:1:1]\n"
+                                     "1 │ \n"
+                                     "  · ─ stray '\\200' in program\n"
+                                     "──╯\n");
                 }
             }
         }
@@ -98,7 +100,7 @@ TEST_CASE("valid expressions") {
     auto lines    = LineStream(iss);
     auto filename = std::string("test");
     auto scanner  = yy::Scanner(&filename, lines);
-    auto errors   = std::vector<print::Error>();
+    auto errors   = std::vector<print::Message>();
     auto ast      = std::vector<std::unique_ptr<AST::Expression>>();
     auto parser   = yy::Parser(scanner, errors, ast);
 
@@ -147,7 +149,7 @@ TEST_CASE("expression error handling") {
     auto lines    = LineStream(iss);
     auto filename = std::string("test");
     auto scanner  = yy::Scanner(&filename, lines);
-    auto errors   = std::vector<print::Error>();
+    auto errors   = std::vector<print::Message>();
     auto ast      = std::vector<std::unique_ptr<AST::Expression>>();
     auto parser   = yy::Parser(scanner, errors, ast);
 
@@ -164,22 +166,25 @@ TEST_CASE("expression error handling") {
             THEN("both errors are reported") {
                 REQUIRE(errors.size() == 2);
                 {
-                    auto &msg = errors[0].message_;
-                    REQUIRE(msg.size() == 2);
+                    auto msg = std::stringstream();
+                    errors[0].print({"foo := U64;", "bar :: 123;"}, msg);
                     CHECK(
-                        msg[1].message_ ==
-                        "expected `U64` literal or identifier, found type name `U64`");
-                    auto &details = errors[0].details_;
-                    REQUIRE(details.size() == 1);
-                    CHECK(details[0].message_ == "unexpected type name `U64`");
+                        msg.str() ==
+                        "error: expected `U64` literal or identifier, found type name `U64`\n"
+                        "  ╭─[test:1:8]\n"
+                        "1 │ foo := U64;\n"
+                        "  ·        ─── unexpected type name `U64`\n"
+                        "──╯\n");
                 }
                 {
-                    auto &msg = errors[1].message_;
-                    REQUIRE(msg.size() == 2);
-                    CHECK(msg[1].message_ == "expected type name, found `U64` literal `123`");
-                    auto &details = errors[1].details_;
-                    REQUIRE(details.size() == 1);
-                    CHECK(details[0].message_ == "unexpected `U64` literal `123`");
+                    auto msg = std::stringstream();
+                    errors[1].print({"foo := U64;", "bar :: 123;"}, msg);
+                    CHECK(
+                        msg.str() == "error: expected type name, found `U64` literal `123`\n"
+                                     "  ╭─[test:2:8]\n"
+                                     "2 │ bar :: 123;\n"
+                                     "  ·        ─── unexpected `U64` literal `123`\n"
+                                     "──╯\n");
                 }
                 AND_THEN("the produced ast should match the expected output") {
                     auto n = json_outputs.size();

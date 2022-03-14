@@ -7,10 +7,10 @@
 #include "json.hpp"
 #include "type/type_checker.hpp"
 #include "type/error.hpp"
+#include "printer.hpp"
 
 #include <utility>
 #include <ostream>
-#include <sstream>
 
 namespace AST {
 
@@ -43,26 +43,32 @@ TypeDefinition::to_json(std::ostream &os) const {
 
 const TypeChecker::Type &
 TypeDefinition::get_type(TypeChecker::Context &ctx) const {
-    auto name = get_name();
-    auto prev = ctx.get_symbol(name);
+    auto  name = get_name();
+    auto &type = type_->get_type(ctx);
+    auto  prev = ctx.get_symbol(name);
     if (prev) {
         using namespace print;
         ctx.set_failure(true);
         auto message = Message::error(get_loc().begin)
-                           .with_message("`" + name + "` already defined")
-                           .in(color::bold_gray);
-        auto prev_loc = prev->get().get_loc();
+                           .with_message("variable `", color::bold_gray)
+                           .with_message(name, color::bold_red)
+                           .with_message("` already defined", color::bold_gray);
+        auto prev_loc = ctx.get_symbol_loc(name);
         if (prev_loc) {
-            message.with_detail_at(*prev_loc)
-                .with_message("previous definition of `" + name + "` here")
-                .in(color::bold_yellow);
+            message.with_detail(*prev_loc, color::bold_yellow)
+                .with_message("previous definition of `", color::bold_gray)
+                .with_message(name, color::bold_yellow)
+                .with_message("` here", color::bold_gray);
         }
+        message.with_detail(get_name_loc(), color::bold_red)
+            .with_message("redefined `", color::bold_gray)
+            .with_message(name, color::bold_red)
+            .with_message("` here", color::bold_gray);
         ctx.add_message(message);
         return ctx.add_type(std::make_unique<TypeChecker::Error>(get_loc()));
     }
-    auto &type = type_->get_type(ctx);
     using namespace TypeChecker;
-    ctx.set_symbol(name, type, get_loc(), Uninit{Uninit::Reason::NOT_DEFINED, *this});
+    ctx.set_symbol(name, type, get_name_loc(), Uninit{Uninit::Reason::NOT_DEFINED, get_name_loc()});
     return type;
 }
 

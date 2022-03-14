@@ -5,6 +5,7 @@
 #include "type/type_checker.hpp"
 #include "type/class.hpp"
 #include "location.hh"
+#include "printer.hpp"
 
 #include <ostream>
 #include <iomanip>
@@ -19,6 +20,8 @@ Context::Context(std::vector<print::Message> &errors)
     classes_["U64"] = &builtins.U64;
 }
 
+Context::Context(Context &&other) = default;
+
 Context::~Context() = default;
 
 const Type &
@@ -27,10 +30,10 @@ Context::add_type(std::unique_ptr<Type> type) {
     return *types_.back();
 }
 
-std::optional<std::reference_wrapper<const Type>>
+const Type *
 Context::get_symbol(const std::string &name) const {
     auto it = symbols_.find(name);
-    return (it == symbols_.end()) ? std::nullopt : std::optional{std::ref(it->second.type)};
+    return (it == symbols_.end()) ? nullptr : &it->second.type;
 }
 
 std::optional<Uninit>

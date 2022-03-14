@@ -4,26 +4,31 @@
 
 #pragma once
 
-#include <unordered_map>
+#include <map>
 #include <vector>
 #include <memory>
 #include <optional>
 
-#include "type/class.hpp"
 #include "ast/ast.hpp"
-#include "printer.hpp"
+
+namespace print {
+class Message;
+}
 
 namespace TypeChecker {
 
+class Type;
+class Class;
+
 struct Uninit {
     enum class Reason { NOT_DEFINED, MOVED_FROM } reason;
-    const AST::Node &node;
+    yy::location loc;
 };
 
 class Context {
 public:
     explicit Context(std::vector<print::Message> &errors);
-    Context(Context &&other) = default;
+    Context(Context &&other);
     ~Context();
 
     Context(const Context &) = delete;
@@ -31,7 +36,7 @@ public:
     const Type &
     add_type(std::unique_ptr<Type> type);
 
-    [[nodiscard]] std::optional<std::reference_wrapper<const Type>>
+    [[nodiscard]] const Type *
     get_symbol(const std::string &name) const;
 
     [[nodiscard]] std::optional<Uninit>
@@ -65,7 +70,7 @@ public:
     void
     add_message(const print::Message &message) const;
 
-    static struct Builtins { const TypeChecker::Class U64; } builtins;
+    static struct Builtins { const TypeChecker::Class &U64; } builtins;
 
 private:
     struct symbol {
@@ -73,11 +78,11 @@ private:
         std::optional<Uninit> uninit_reason;
         yy::location          init_loc;
     };
-    std::vector<print::Message>                   &errors_;
-    bool                                           did_fail_ = false;
-    std::vector<std::unique_ptr<Type>>             types_;
-    std::unordered_map<std::string, const Class *> classes_;
-    std::unordered_map<std::string, symbol>        symbols_;
+    std::vector<print::Message>         &errors_;
+    bool                                 did_fail_ = false;
+    std::vector<std::unique_ptr<Type>>   types_;
+    std::map<std::string, const Class *> classes_;
+    std::map<std::string, symbol>        symbols_;
 };
 
 } // namespace TypeChecker

@@ -3,12 +3,14 @@
 //
 
 #include "driver.hpp"
-#include "type/type_checker.hpp"
+#include "scanner.hpp"
 
 #include <algorithm>
 
 Driver::Driver(std::istream &input)
     : line_stream_(input) {}
+
+Driver::~Driver() = default;
 
 bool
 Driver::parse(const std::string *filename) {

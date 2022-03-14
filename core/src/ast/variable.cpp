@@ -6,10 +6,10 @@
 #include "json.hpp"
 #include "type/type_checker.hpp"
 #include "type/error.hpp"
+#include "printer.hpp"
 
 #include <utility>
 #include <ostream>
-#include <sstream>
 
 namespace AST {
 
@@ -39,48 +39,58 @@ Variable::get_type(TypeChecker::Context &ctx) const {
 
         ctx.set_failure(true);
         auto message = Message::error(get_loc().begin)
-                           .with_message("`" + name_ + "` was not declared in this scope")
-                           .in(color::bold_gray)
-                           .with_detail_at(get_loc())
-                           .with_message("used here")
-                           .in(color::bold_red);
+                           .with_message("`", color::bold_gray)
+                           .with_message(name_, color::bold_red)
+                           .with_message("` was not declared in this scope", color::bold_gray)
+                           .with_detail(get_loc(), color::bold_red)
+                           .with_message("`", color::bold_gray)
+                           .with_message(name_, color::bold_red)
+                           .with_message("` used here", color::bold_gray);
         ctx.add_message(message);
         return ctx.add_type(std::make_unique<TypeChecker::Error>(get_loc()));
     } else {
-        auto &t      = type->get();
-        auto  uninit = ctx.is_uninitialized(name_);
+        auto uninit = ctx.is_uninitialized(name_);
         if (uninit) {
             using namespace print;
 
             ctx.set_failure(true);
-            auto loc      = get_loc();
-            auto type_loc = type->get().get_loc();
-            auto message  = Message::error(get_loc().begin);
+            auto loc     = get_loc();
+            auto def_loc = ctx.get_symbol_loc(name_);
+            auto message = Message::error(get_loc().begin);
             switch (uninit->reason) {
                 case Uninit::Reason::NOT_DEFINED:
-                    message.with_message("`" + name_ + "` used before initialization")
-                        .in(color::bold_gray);
-                    message.with_detail_at(uninit->node.get_loc())
-                        .with_message("`" + name_ + "` declared without being initialized here")
-                        .in(color::bold_yellow);
-                    message.with_detail_at(loc)
-                        .with_message("`" + name_ + "` used here")
-                        .in(color::bold_red);
+                    message.with_message("variable `", color::bold_gray)
+                        .with_message(name_, color::bold_red)
+                        .with_message("` used before initialization", color::bold_gray);
+                    message.with_detail(uninit->loc, color::bold_yellow)
+                        .with_message("`", color::bold_gray)
+                        .with_message(name_, color::bold_yellow)
+                        .with_message(
+                            "` declared without being initialized here",
+                            color::bold_gray);
+                    message.with_detail(loc, color::bold_red)
+                        .with_message("`", color::bold_gray)
+                        .with_message(name_, color::bold_red)
+                        .with_message("` used here", color::bold_gray);
                     break;
                 case Uninit::Reason::MOVED_FROM:
-                    message.with_message("`" + name_ + "` used after being moved")
-                        .in(color::bold_gray);
-                    if (type_loc) {
-                        message.with_detail_at(*type_loc)
-                            .with_message("value assigned to `" + name_ + "` here")
-                            .in(color::bold_yellow);
+                    message.with_message("variable `", color::bold_gray)
+                        .with_message(name_, color::bold_red)
+                        .with_message("` used after being moved", color::bold_gray);
+                    if (def_loc) {
+                        message.with_detail(*def_loc, color::bold_yellow)
+                            .with_message("value assigned to `", color::bold_gray)
+                            .with_message(name_, color::bold_yellow)
+                            .with_message("` here", color::bold_gray);
                     }
-                    message.with_detail_at(uninit->node.get_loc())
-                        .with_message("value moved out of `" + name_ + "` here")
-                        .in(color::bold_cyan);
-                    message.with_detail_at(loc)
-                        .with_message("`" + name_ + "` used here after move")
-                        .in(color::bold_red);
+                    message.with_detail(uninit->loc, color::bold_yellow)
+                        .with_message("value moved out of `", color::bold_gray)
+                        .with_message(name_, color::bold_yellow)
+                        .with_message("` here", color::bold_gray);
+                    message.with_detail(loc, color::bold_red)
+                        .with_message("`", color::bold_gray)
+                        .with_message(name_, color::bold_red)
+                        .with_message("` used here after move", color::bold_gray);
                     break;
             }
             ctx.add_message(message);
@@ -89,9 +99,9 @@ Variable::get_type(TypeChecker::Context &ctx) const {
             // used. This is still a type error, but later type errors can still be inferred from
             // this type.
         } else {
-            ctx.set_symbol(name_, t, get_loc(), Uninit{Uninit::Reason::MOVED_FROM, *this});
+            ctx.set_symbol(name_, *type, get_loc(), Uninit{Uninit::Reason::MOVED_FROM, get_loc()});
         }
-        return t;
+        return *type;
     }
 }
 
