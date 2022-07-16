@@ -32,6 +32,8 @@
      )
 #endif
 
+#include <optional>
+
 #include "ast/ast_includes.hpp"
 #include "printer.hpp"
 
@@ -79,53 +81,85 @@
 /* TOKENS */
 %token
     EOF 0       "end of file"
+    LPAREN      "("
+    RPAREN      ")"
+    LBRACE      "{"
+    RBRACE      "}"
     SEMICOLON   ";"
-    TYPE_DECL   "::"
+    TYPE_DECL   ":"
     DEFINE      ":="
+    ASSIGN      "="
+    COMMA       ","
+    ARROW       "->"
+    BIG_ARROW   "=>"
 
-%token<uint64_t>
+%token< uint64_t >
     U64     "`U64` literal"
 
-%token<std::string>
+%token< std::string >
     IDENT       "identifier"
     TYPENAME    "type name"
 
-%type<std::vector<std::unique_ptr<AST::Expression>>>
-    expressions
+%type< std::vector<std::unique_ptr<AST::Expression>> >
+    opt_lines
+    lines
 
-%type<std::unique_ptr<AST::Expression>>
+%type< std::unique_ptr<AST::Expression> >
     line
     expression
 
-%type<std::unique_ptr<AST::Definition>>
+%type< std::unique_ptr<AST::Definition> >
     definition
 
-%type<std::unique_ptr<AST::SimpleExpression>>
+%type< std::unique_ptr<AST::SimpleExpression> >
+    call_expression
+    tuple_expression
     simple_expression
 
-%type<std::unique_ptr<AST::Literal>>
+%type< std::vector<std::unique_ptr<AST::SimpleExpression>> >
+    tuple_body
+    tuple_values
+
+%type< std::unique_ptr<AST::Literal> >
     literal
 
-%type<std::unique_ptr<AST::Type>>
+%type< std::unique_ptr<AST::Block> >
+    block
+
+%type< std::unique_ptr<AST::Type> >
     type
+    func_type
+    tuple_type
+    simple_type
+
+%type< std::vector<std::unique_ptr<AST::Type>> >
+    types
+
+%type< AST::Function::arg_t >
+    arg_type
+
+%type< std::vector<AST::Function::arg_t> >
+    opt_arg_types
+    arg_types
 
 %start file
 
 %%
 
 file
-    : %empty {
-        ast_out.clear();
-    }
-    | expressions {
+    : opt_lines {
         ast_out = $1;
     }
 
-expressions
+opt_lines
+    : %empty {}
+    | lines
+
+lines
     : line {
         $$.emplace_back($1);
     }
-    | expressions line {
+    | lines line {
         $$ = $1;
         $$.emplace_back($2);
     }
@@ -140,10 +174,10 @@ line
     | "identifier" ":=" expression error ";" {
         $$ = NODE(ValueDefinition, $1, @1, $3, @$);
     }
-    | "identifier" "::" type error ";" {
+    | "identifier" ":" type error ";" {
         $$ = NODE(TypeDefinition, $1, @1, $3, @$);
     }
-    | "identifier" "::" error ";" {
+    | "identifier" ":" error ";" {
         $$ = NODE(TypeDefinition, $1, @1, NODE(Error, @3), @$);
     }
     | error ";" {
@@ -154,7 +188,7 @@ expression
     : definition {
         $$ = $1;
     }
-    | simple_expression {
+    | call_expression {
         $$ = $1;
     }
 
@@ -162,8 +196,26 @@ definition
     : "identifier" ":=" expression {
         $$ = NODE(ValueDefinition, $1, @1, $3, @$);
     }
-    | "identifier" "::" type {
+    | "identifier" ":" type {
         $$ = NODE(TypeDefinition, $1, @1, $3, @$);
+    }
+    | "identifier" ":" type "=" expression {
+        $$ = NODE(TypeValueDefinition, $1, @1, $3, $5, @$);
+    }
+
+call_expression
+    : tuple_expression
+    | call_expression tuple_expression {
+        $$ = NODE(Call, $1, $2, @$);
+    }
+
+tuple_expression
+    : simple_expression
+    | "(" tuple_body ")" {
+        $$ = NODE(Tuple, $2, @$);
+    }
+    | unit {
+        $$ = NODE(Tuple, @$);
     }
 
 simple_expression
@@ -173,15 +225,138 @@ simple_expression
     | "identifier" {
         $$ = NODE(Variable, $1, @$);
     }
+    | block {
+        $$ = $1;
+    }
+    | arg_type "=>" simple_expression {
+        std::vector<AST::Function::arg_t> args;
+        args.emplace_back($1);
+        $$ = NODE(Function, std::move(args), $3, @$);
+    }
+    | opt_arg_types "=>" simple_expression {
+        $$ = NODE(Function, $1, $3, @$);
+    }
+    | opt_arg_types "->" type "=>" simple_expression {
+        $$ = NODE(Function, $1, $3, $5, @$);
+    }
+    | "(" call_expression ")" {
+        $$ = $2;
+    }
+
+tuple_body
+    : call_expression "," {
+        $$.push_back($1);
+    }
+    | tuple_values
+    | tuple_values "," {
+        $$ = $1;
+    }
+
+tuple_values
+    : call_expression "," call_expression {
+        $$.push_back($1);
+        $$.push_back($3);
+    }
+    | tuple_values "," call_expression {
+        $$ = $1;
+        $$.push_back($3);
+    }
+
+unit
+    : "(" ")"
+
+block
+    : "{" "}" {
+        $$ = NODE(Block, @$, @$);
+    }
+    | "{" expression "}" {
+        $$ = NODE(Block, $2, @$);
+    }
+    | "{" expression ";" "}" {
+        std::vector<std::unique_ptr<AST::Expression>> lines;
+        lines.push_back($2);
+        $$ = NODE(Block, std::move(lines), @3, @$);
+    }
+    | "{" lines expression "}" {
+        $$ = NODE(Block, $2, $3, @$);
+    }
+    | "{" lines expression ";" "}" {
+        auto lines = $2;
+        lines.push_back($3);
+        $$ = NODE(Block, std::move(lines), @4, @$);
+    }
 
 literal
     : "`U64` literal" {
         $$ = NODE(U64, $1, @$);
     }
 
+opt_arg_types
+    : unit {}
+    | "(" arg_types ")" {
+        $$ = $2;
+    }
+
+arg_types
+    : arg_type {
+        $$.push_back($1);
+    }
+    | arg_types "," arg_type {
+        $$ = $1;
+        $$.push_back($3);
+    }
+    | error {}
+    | arg_types "," error {
+        $$ = $1;
+    }
+
+arg_type
+    : "identifier" ":" type {
+        $$ = std::make_tuple($1, $3, @$);
+    }
+
 type
+    : simple_type
+    | func_type
+
+simple_type
     : "type name" {
         $$ = NODE(ObjectType, $1, @1, @$);
+    }
+    | "(" type ")" {
+        $$ = $2;
+    }
+    | tuple_type
+
+func_type
+    : simple_type "->" type {
+        $$ = NODE(FuncType, $1, $3, @$);
+    }
+
+tuple_type
+    : unit {
+        $$ = NODE(TupleType, @$);
+    }
+    | "(" type "," ")" {
+        std::vector<std::unique_ptr<AST::Type>> types;
+        types.emplace_back($2);
+        $$ = NODE(TupleType, std::move(types), @$);
+    }
+    | "(" types ")" {
+        $$ = NODE(TupleType, $2, @$);
+    }
+    | "(" types "," ")" {
+        $$ = NODE(TupleType, $2, @$);
+    }
+
+types
+    : type "," type {
+        $$.push_back($1);
+        $$.push_back($3);
+    }
+    | types "," type {
+        $$ = $1;
+        $$.push_back($3);
     }
 
 %%
@@ -196,6 +371,30 @@ static std::vector<print::colored_text>
 symbol_kind_name(const yy::Parser::symbol_kind_type &kind) {
     using namespace print;
     switch (kind) {
+        case Parser::symbol_kind::S_LPAREN:
+            return {
+                {"`", color::bold_gray},
+                {"(", color::bold_red},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_RPAREN:
+            return {
+                {"`", color::bold_gray},
+                {")", color::bold_red},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_LBRACE:
+            return {
+                {"`", color::bold_gray},
+                {"{", color::bold_red},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_RBRACE:
+            return {
+                {"`", color::bold_gray},
+                {"}", color::bold_red},
+                {"`", color::bold_gray}
+            };
         case Parser::symbol_kind::S_SEMICOLON:
             return {
                 {"`", color::bold_gray},
@@ -205,13 +404,37 @@ symbol_kind_name(const yy::Parser::symbol_kind_type &kind) {
         case Parser::symbol_kind::S_TYPE_DECL:
             return {
                 {"`", color::bold_gray},
-                {"::", color::bold_red},
+                {":", color::bold_red},
                 {"`", color::bold_gray}
             };
         case Parser::symbol_kind::S_DEFINE:
             return {
                 {"`", color::bold_gray},
                 {":=", color::bold_red},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_ASSIGN:
+            return {
+                {"`", color::bold_gray},
+                {"=", color::bold_red},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_COMMA:
+            return {
+                {"`", color::bold_gray},
+                {",", color::bold_red},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_ARROW:
+            return {
+                {"`", color::bold_gray},
+                {"->", color::bold_red},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_BIG_ARROW:
+            return {
+                {"`", color::bold_gray},
+                {"=>", color::bold_red},
                 {"`", color::bold_gray}
             };
         case Parser::symbol_kind::S_U64:
@@ -226,13 +449,27 @@ symbol_kind_name(const yy::Parser::symbol_kind_type &kind) {
         case Parser::symbol_kind::S_YYUNDEF:
         case Parser::symbol_kind::S_YYACCEPT:
         case Parser::symbol_kind::S_file:
-        case Parser::symbol_kind::S_expressions:
+        case Parser::symbol_kind::S_opt_lines:
+        case Parser::symbol_kind::S_lines:
         case Parser::symbol_kind::S_line:
         case Parser::symbol_kind::S_expression:
         case Parser::symbol_kind::S_definition:
+        case Parser::symbol_kind::S_call_expression:
+        case Parser::symbol_kind::S_tuple_expression:
         case Parser::symbol_kind::S_simple_expression:
+        case Parser::symbol_kind::S_tuple_body:
+        case Parser::symbol_kind::S_tuple_values:
+        case Parser::symbol_kind::S_block:
         case Parser::symbol_kind::S_literal:
+        case Parser::symbol_kind::S_types:
         case Parser::symbol_kind::S_type:
+        case Parser::symbol_kind::S_func_type:
+        case Parser::symbol_kind::S_tuple_type:
+        case Parser::symbol_kind::S_simple_type:
+        case Parser::symbol_kind::S_opt_arg_types:
+        case Parser::symbol_kind::S_arg_types:
+        case Parser::symbol_kind::S_arg_type:
+        case Parser::symbol_kind::S_unit:
             break;
     }
     return {{yy::Parser::symbol_name(kind), color::bold_gray}};
@@ -276,12 +513,12 @@ Parser::report_syntax_error(yy::Parser::context const &ctx) const {
     auto &lah = ctx.lookahead();
     auto  num = ctx.expected_tokens(nullptr, 0);
     auto  exp = std::vector<Parser::symbol_kind_type>(num);
-    ctx.expected_tokens(&exp[0], num);
+    ctx.expected_tokens(exp.data(), num);
 
     auto message = Message::error(loc.begin)
                    .with_message("expected ", color::bold_gray);
     std::string sep;
-    for (size_t i = 0; i < exp.size() - 1; i++) {
+    for (int i = 0; i < static_cast<int>(exp.size()) - 1; i++) {
         message.with_message(sep, color::bold_gray);
         for (auto s : symbol_kind_name(exp[i])) {
             message.with_message(s);

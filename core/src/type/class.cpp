@@ -16,12 +16,22 @@ Class::~Class() = default;
 
 void
 Class::print(std::ostream &os) const {
-    os << "[class " << name_ << "]";
+    os << name_;
 }
 
 std::string
 Class::get_name() const {
     return name_;
+}
+
+Relation
+Class::compare(const Type &other) const {
+    const auto *cl_ptr = dynamic_cast<const Class *>(&other);
+    if (!cl_ptr) return Relation::UNRELATED;
+
+    if (this == cl_ptr) return Relation::SAME_TYPE;
+    // TODO Add subtyping support
+    return Relation::UNRELATED;
 }
 
 } // namespace TypeChecker

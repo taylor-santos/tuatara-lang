@@ -309,6 +309,9 @@ get_line_details(const Context &ctx) {
             if (begin == end) {
                 single_details.push_back(&d);
                 line_details[begin].in.push_back(&d);
+            } else if (d.loc.end.column == 1 && d.loc.end.line == d.loc.begin.line + 1) {
+                single_details.push_back(&d);
+                line_details[begin].in.push_back(&d);
             } else {
                 multi_details.push_back(&d);
             }

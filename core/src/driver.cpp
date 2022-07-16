@@ -36,6 +36,11 @@ Driver::lines() const {
     return line_stream_.lines();
 }
 
+const std::vector<std::unique_ptr<AST::Expression>> &
+Driver::ast() const {
+    return ast_;
+}
+
 const std::vector<print::Message> &
 Driver::errors() const {
     return errors_;

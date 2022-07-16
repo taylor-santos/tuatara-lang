@@ -21,6 +21,9 @@ public:
     void
     print(std::ostream &os) const override;
 
+    [[nodiscard]] Relation
+    compare(const Type &other) const override;
+
 private:
     std::string                                                name_;
     std::unordered_map<std::string, const TypeChecker::Type &> fields_;

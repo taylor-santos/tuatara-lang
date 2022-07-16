@@ -15,6 +15,9 @@ public:
 
     void
     print(std::ostream &os) const override;
+
+    [[nodiscard]] Relation
+    compare(const Type &other) const override;
 };
 
 } // namespace TypeChecker

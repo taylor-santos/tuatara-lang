@@ -4,8 +4,6 @@
 
 #pragma once
 
-#include <unordered_map>
-
 #include "type/type.hpp"
 
 namespace TypeChecker {
@@ -22,6 +20,9 @@ public:
 
     void
     print(std::ostream &os) const override;
+
+    [[nodiscard]] Relation
+    compare(const Type &other) const override;
 
 private:
     const Class &class_;

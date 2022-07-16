@@ -16,4 +16,9 @@ Error::print(std::ostream &os) const {
     os << "<error>";
 }
 
+Relation
+Error::compare(const Type &) const {
+    return Relation::UNRELATED;
+}
+
 } // namespace TypeChecker

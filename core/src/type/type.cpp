@@ -6,6 +6,17 @@
 
 namespace TypeChecker {
 
+bool
+is_a_relationship(Relation rel) {
+    switch (rel) {
+        case Relation::SAME_TYPE:
+        case Relation::SUB_TYPE: return true;
+        case Relation::SUPER_TYPE:
+        case Relation::UNRELATED: break;
+    }
+    return false;
+}
+
 Type::Type(std::optional<yy::location> loc)
     : loc_{loc} {}
 

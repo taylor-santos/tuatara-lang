@@ -11,6 +11,19 @@
 
 namespace TypeChecker {
 
+enum class Relation {
+    SAME_TYPE,
+    SUB_TYPE,
+    SUPER_TYPE,
+    UNRELATED,
+};
+
+// Returns true if this Relation enum represents an is-a relationship.
+// If A is a B (i.e. A can be used anywhere a B is expected), then A.compare(B) will return a
+// Relation that if passed into this function will return true.
+bool
+is_a_relationship(Relation rel);
+
 class Type {
 public:
     explicit Type(std::optional<yy::location> loc);
@@ -22,6 +35,9 @@ public:
 
     virtual void
     print(std::ostream &os) const = 0;
+
+    [[nodiscard]] virtual Relation
+    compare(const Type &other) const = 0;
 
 private:
     std::optional<yy::location> loc_;

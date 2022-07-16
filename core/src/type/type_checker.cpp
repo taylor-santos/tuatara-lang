@@ -13,14 +13,27 @@
 
 namespace TypeChecker {
 
-Context::Builtins Context::builtins = {.U64 = TypeChecker::Class("U64")};
+#define ADD_BUILTIN(name) .name = TypeChecker::Class(#name)
+Context::Builtins Context::builtins = {
+    ADD_BUILTIN(U64),
+    ADD_BUILTIN(Dummy),
+};
+#undef ADD_BUILTIN
 
 Context::Context(std::vector<print::Message> &errors)
     : errors_{errors} {
-    classes_["U64"] = &builtins.U64;
+#define ADD_CLASS(cl) classes_[#cl] = &builtins.cl
+    ADD_CLASS(U64);
+    ADD_CLASS(Dummy);
+#undef ADD_CLASS
 }
 
-Context::Context(Context &&other) = default;
+Context::Context(const Context &other)
+    : errors_{other.errors_}
+    , classes_{other.classes_}
+    , symbols_{other.symbols_} {}
+
+Context::Context(Context &&other) noexcept = default;
 
 Context::~Context() = default;
 
@@ -55,7 +68,9 @@ Context::set_symbol(const std::string &name, const Type &type, yy::location init
         // Keep the original symbol init location
         // TODO: This might interfere with nested scopes?
         //       Keeping the old location should be more explicit
-        init_loc = it->second.init_loc;
+        //       7/15/22 - Errors should probably point to the most recent setting of the symbol,
+        //                 not the first. Commenting out this line for now.
+        // init_loc = it->second.init_loc;
         symbols_.erase(name);
     }
     symbols_.emplace(name, Context::symbol{type, {}, init_loc});

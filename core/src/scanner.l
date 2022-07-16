@@ -68,6 +68,7 @@ ident          [_0-9a-zA-Z]
 
 [\r]?[\n]?      { loc_.lines(1); }
 [[:blank:]]+    { /* Ignore whitespace */ }
+[/]{2}.*        { /* Ignore comments */ }
 
 [[:digit:]]([_]*[[:digit:]]+)*  { return lex_int(yytext, loc_); }
 
@@ -75,8 +76,18 @@ ident          [_0-9a-zA-Z]
 {typename_start}{ident}*    { return yy::Parser::make_TYPENAME(yytext, loc_); }
 
 ;   { return yy::Parser::make_SEMICOLON(loc_); }
-::  { return yy::Parser::make_TYPE_DECL(loc_); }
+:   { return yy::Parser::make_TYPE_DECL(loc_); }
 :=  { return yy::Parser::make_DEFINE(loc_); }
+=   { return yy::Parser::make_ASSIGN(loc_); }
+,   { return yy::Parser::make_COMMA(loc_); }
+
+"(" { return yy::Parser::make_LPAREN(loc_); }
+")" { return yy::Parser::make_RPAREN(loc_); }
+"{" { return yy::Parser::make_LBRACE(loc_); }
+"}" { return yy::Parser::make_RBRACE(loc_); }
+
+"->" { return yy::Parser::make_ARROW(loc_); }
+"=>" { return yy::Parser::make_BIG_ARROW(loc_); }
 
 .       { throw_unrecognized_char(*yytext, loc_); }
 <<EOF>> { return yy::Parser::make_EOF(loc_); }

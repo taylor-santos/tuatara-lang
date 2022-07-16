@@ -28,10 +28,12 @@ struct Uninit {
 class Context {
 public:
     explicit Context(std::vector<print::Message> &errors);
-    Context(Context &&other);
-    ~Context();
 
-    Context(const Context &) = delete;
+    Context(const Context &other);
+
+    Context(Context &&other) noexcept;
+
+    ~Context();
 
     const Type &
     add_type(std::unique_ptr<Type> type);
@@ -70,7 +72,10 @@ public:
     void
     add_message(const print::Message &message) const;
 
-    static struct Builtins { const TypeChecker::Class &U64; } builtins;
+    static struct Builtins {
+        const TypeChecker::Class &U64;
+        const TypeChecker::Class &Dummy;
+    } builtins;
 
 private:
     struct symbol {

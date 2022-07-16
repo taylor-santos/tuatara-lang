@@ -5,18 +5,27 @@ set(CORE_SOURCES
         ast/definition.cpp
         ast/value_definition.cpp
         ast/type_definition.cpp
+        ast/type_value_definition.cpp
         ast/simple_expression.cpp
+        ast/block.cpp
+        ast/function.cpp
+        ast/call.cpp
+        ast/tuple.cpp
         ast/literal.cpp
         ast/u64.cpp
         ast/variable.cpp
         ast/type.cpp
         ast/object_type.cpp
+        ast/tuple_type.cpp
+        ast/func_type.cpp
         ast/error.cpp
         type/type_checker.cpp
         type/type.cpp
         type/error.cpp
         type/class.cpp
         type/object.cpp
+        type/tuple.cpp
+        type/func.cpp
         driver.cpp
         json.cpp
         line_stream.cpp

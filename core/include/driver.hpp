@@ -28,6 +28,9 @@ public:
     [[nodiscard]] const std::vector<std::string> &
     lines() const;
 
+    [[nodiscard]] const std::vector<std::unique_ptr<AST::Expression>> &
+    ast() const;
+
     [[nodiscard]] const std::vector<print::Message> &
     errors() const;
 

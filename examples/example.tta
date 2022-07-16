@@ -1,16 +1,28 @@
-used_after_move := 123;
-tmp00 := used_after_move;
-tmp01 := used_after_move;
+// used_after_move := 123;
+// tmp00 := used_after_move;
+// tmp01 := used_after_move;
 
-used_before_init :: U64;
-tmp02 := used_before_init;
+// used_before_init : U64;
+// tmp02 := used_before_init;
 
-tmp03 := not_declared;
+// tmp03 := not_declared;
 
-tmp04 :: Unknown_type;
+// tmp04 : Unknown_type;
 
-already_defined_val := 123;
-already_defined_val := 456;
+// already_defined_val := 123;
+// already_defined_val := 456;
 
-already_defined_type :: U64;
-already_defined_type :: U64;
+// already_defined_type : U64;
+// already_defined_type : U64;
+
+// conflicting_value : Foo = 123;
+
+
+function_call := a: U64 => b: U64 => c: U64 -> U64 => a;
+
+
+println := (message: U64) -> Dummy => {
+    x := 5;
+    y := 2;
+    message
+};
