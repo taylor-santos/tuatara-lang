@@ -6,6 +6,7 @@
 
 #include "ast/simple_expression.hpp"
 #include "ast/type.hpp"
+#include "type/type_checker.hpp"
 
 #include <vector>
 #include <optional>
@@ -14,14 +15,20 @@ namespace AST {
 
 class Function final : public SimpleExpression {
 public:
-    using arg_t = std::tuple<std::string, std::unique_ptr<AST::Type>, yy::location>;
+    struct Pattern {
+        std::string                name;
+        std::unique_ptr<AST::Type> type;
+    };
+    using arg_t = std::pair<Pattern, yy::location>;
     Function(
         std::vector<arg_t>                   &&args,
+        const yy::location                    &args_loc,
         std::unique_ptr<AST::SimpleExpression> body,
         const yy::location                    &loc);
 
     Function(
         std::vector<arg_t>                   &&args,
+        const yy::location                    &args_loc,
         std::unique_ptr<AST::Type>             ret_type,
         std::unique_ptr<AST::SimpleExpression> body,
         const yy::location                    &loc);
@@ -35,9 +42,11 @@ public:
     get_type(TypeChecker::Context &ctx) const override;
 
 private:
-    std::vector<arg_t>                        args_;
-    std::optional<std::unique_ptr<AST::Type>> ret_type_;
-    std::unique_ptr<AST::SimpleExpression>    body_;
+    std::vector<arg_t>                          args_;
+    yy::location                                args_loc_;
+    std::optional<std::unique_ptr<AST::Type>>   ret_type_;
+    std::unique_ptr<AST::SimpleExpression>      body_;
+    mutable std::optional<TypeChecker::Context> ctx_;
 };
 
 } // namespace AST

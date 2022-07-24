@@ -321,8 +321,6 @@ get_line_details(const Context &ctx) {
             multi_details.begin(),
             multi_details.end(),
             [](const detail *a, const detail *b) -> bool {
-                (void)a;
-                (void)b;
                 return a->loc.end.line > b->loc.end.line;
             });
 
@@ -336,7 +334,6 @@ get_line_details(const Context &ctx) {
                     line_details[i]; // Include lines between start and end of range
                 }
             }
-            (void)source_lines;
         }
     }
     return line_details;
@@ -618,7 +615,41 @@ generate_output(
         color::gray);
     output.emplace_back(filename);
 
+    auto prev_line = 0;
+
     for (auto &[line_number, all_ds] : line_details) {
+        if (prev_line) {
+            // If there is exactly one non-empty source line between two detailed lines, print it
+            // anyways. Otherwise, print "..." to indicate multiple lines are being skipped.
+            auto single_line = 0;
+            for (auto i = prev_line + 1; i < line_number; i++) {
+                auto &line = source_lines[i - 1];
+                if (line.find_last_not_of(" \t") != std::string::npos) {
+                    if (single_line) {
+                        // Multiple intermediate lines have been found, just print "..."
+                        auto text = std::vector<colored_text>();
+                        text.emplace_back(
+                            SS() << chars.vbar_break << chars.vbar_break << chars.vbar_break,
+                            color::gray);
+                        output.push_back(std::move(text));
+                        single_line = 0;
+                        break;
+                    }
+                    single_line = i;
+                }
+            }
+            if (single_line) {
+                auto text = std::vector<colored_text>();
+                text.emplace_back(
+                    SS() << std::setw(last_line_width) << std::right << single_line << " "
+                         << chars.vbar << " ",
+                    color::gray);
+                text.emplace_back(source_lines[single_line - 1], color::gray);
+                output.push_back(std::move(text));
+            }
+        }
+        prev_line = line_number;
+
         auto &[in_ds, begin_ds, end_ds, multi_ds] = sort_all_details(all_ds);
 
         {
@@ -671,6 +702,23 @@ generate_output(
             output.push_back(*line);
         }
     }
+
+    /*
+    auto last_line = line_details.rbegin()->first;
+    for (auto line_number = last_line; line_number < (int)source_lines.size(); line_number++) {
+        auto &line = source_lines[line_number];
+        if (line.find_last_not_of(" \t") != std::string::npos) {
+            auto text = std::vector<colored_text>();
+            text.emplace_back(
+                SS() << std::setw(last_line_width) << std::right << (line_number + 1) << " "
+                     << chars.vbar << " ",
+                color::gray);
+            text.emplace_back(line, color::gray);
+            output.push_back(std::move(text));
+            break;
+        }
+    }
+     */
 
     output.push_back(
         {{SS() << repeat(chars.hbar, last_line_width + 1) << chars.rbot, color::gray}});

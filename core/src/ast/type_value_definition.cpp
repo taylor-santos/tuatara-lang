@@ -92,24 +92,23 @@ TypeValueDefinition::get_type(TypeChecker::Context &ctx) const {
                                    .with_message(
                                        "` declaration has conflicting type and value",
                                        color::bold_gray);
-                auto type_name = std::stringstream();
-                type.print(type_name);
+                auto type_name       = type.print();
+                auto value_type_name = value_type.print();
+
                 message.with_detail(*type.get_loc(), color::bold_yellow)
                     .with_message("declared type is `", color::bold_gray)
-                    .with_message(type_name.str(), color::bold_yellow)
+                    .with_message(type_name, color::bold_yellow)
                     .with_message("`", color::bold_gray);
-                auto value_type_name = std::stringstream();
-                value_type.print(value_type_name);
                 message.with_detail(*value_type.get_loc(), color::bold_red)
                     .with_message("value has type `", color::bold_gray)
-                    .with_message(value_type_name.str(), color::bold_red)
+                    .with_message(value_type_name, color::bold_red)
                     .with_message("`", color::bold_gray);
                 ctx.add_message(message);
             }
             return ctx.add_type(std::make_unique<TypeChecker::Error>(get_loc()));
     }
 
-    ctx.set_symbol(name, type, get_name_loc(), Uninit{Uninit::Reason::NOT_DEFINED, get_name_loc()});
+    ctx.set_symbol(name, type, get_name_loc());
     return type;
 }
 

@@ -6,14 +6,17 @@
 
 #include "ast/simple_expression.hpp"
 
+#include <vector>
+
 namespace AST {
 
 class Call final : public SimpleExpression {
 public:
     Call(
-        std::unique_ptr<AST::Expression> func,
-        std::unique_ptr<AST::Expression> arg,
-        const yy::location              &loc);
+        std::unique_ptr<AST::Expression>                    func,
+        std::vector<std::unique_ptr<AST::SimpleExpression>> args,
+        const yy::location                                 &args_loc,
+        const yy::location                                 &loc);
 
     ~Call() override;
 
@@ -24,8 +27,9 @@ public:
     get_type(TypeChecker::Context &ctx) const override;
 
 private:
-    std::unique_ptr<AST::Expression> func_;
-    std::unique_ptr<AST::Expression> arg_;
+    std::unique_ptr<AST::Expression>                    func_;
+    std::vector<std::unique_ptr<AST::SimpleExpression>> args_;
+    yy::location                                        args_loc_;
 };
 
 } // namespace AST

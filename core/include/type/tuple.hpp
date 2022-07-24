@@ -13,19 +13,23 @@ namespace TypeChecker {
 
 class Tuple final : public Type {
 public:
-    Tuple(std::vector<std::unique_ptr<Type>> &&types, yy::location loc);
+    Tuple(std::vector<const Type *> types, yy::location loc);
     explicit Tuple(yy::location loc);
 
     ~Tuple() override;
 
     void
-    print(std::ostream &os) const override;
+    print(std::ostream &os, bool paren) const override;
 
+    [[nodiscard]] const std::vector<const Type *> &
+    types() const;
+
+protected:
     [[nodiscard]] Relation
-    compare(const Type &other) const override;
+    get_relation(const Type &other) const override;
 
 private:
-    std::vector<std::unique_ptr<Type>> types_;
+    std::vector<const Type *> types_;
 };
 
 } // namespace TypeChecker

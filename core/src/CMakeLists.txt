@@ -26,6 +26,7 @@ set(CORE_SOURCES
         type/object.cpp
         type/tuple.cpp
         type/func.cpp
+        type/wrapper.cpp
         driver.cpp
         json.cpp
         line_stream.cpp

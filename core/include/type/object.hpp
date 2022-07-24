@@ -19,10 +19,11 @@ public:
     get_class() const;
 
     void
-    print(std::ostream &os) const override;
+    print(std::ostream &os, bool paren) const override;
 
+protected:
     [[nodiscard]] Relation
-    compare(const Type &other) const override;
+    get_relation(const Type &other) const override;
 
 private:
     const Class &class_;

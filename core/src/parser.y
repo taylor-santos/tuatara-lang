@@ -112,11 +112,13 @@
     definition
 
 %type< std::unique_ptr<AST::SimpleExpression> >
+    func_expression
     call_expression
     tuple_expression
     simple_expression
 
 %type< std::vector<std::unique_ptr<AST::SimpleExpression>> >
+    multi_tuple
     tuple_body
     tuple_values
 
@@ -133,6 +135,7 @@
     simple_type
 
 %type< std::vector<std::unique_ptr<AST::Type>> >
+    tuple_types
     types
 
 %type< AST::Function::arg_t >
@@ -168,6 +171,9 @@ line
     : expression ";" {
         $$ = $1;
     }
+    | definition ";" {
+        $$ = $1;
+    }
     | "identifier" ":=" error ";" {
         $$ = NODE(ValueDefinition, $1, @1, NODE(Error, @3), @$);
     }
@@ -185,10 +191,7 @@ line
     }
 
 expression
-    : definition {
-        $$ = $1;
-    }
-    | call_expression {
+    : func_expression {
         $$ = $1;
     }
 
@@ -203,19 +206,35 @@ definition
         $$ = NODE(TypeValueDefinition, $1, @1, $3, $5, @$);
     }
 
+func_expression
+    : call_expression
+    | arg_type "=>" func_expression {
+        std::vector<AST::Function::arg_t> args;
+        args.emplace_back($1);
+        $$ = NODE(Function, std::move(args), @1, $3, @$);
+    }
+    | opt_arg_types "=>" func_expression {
+        $$ = NODE(Function, $1, @1, $3, @$);
+    }
+    | opt_arg_types "->" type "=>" func_expression {
+        $$ = NODE(Function, $1, @1, $3, $5, @$);
+    }
+
 call_expression
     : tuple_expression
-    | call_expression tuple_expression {
-        $$ = NODE(Call, $1, $2, @$);
+    | call_expression simple_expression {
+        auto values = std::vector<std::unique_ptr<AST::SimpleExpression>>();
+        values.emplace_back($2);
+        $$ = NODE(Call, $1, std::move(values), @2, @$);
+    }
+    | call_expression multi_tuple {
+        $$ = NODE(Call, $1, $2, @2, @$);
     }
 
 tuple_expression
     : simple_expression
-    | "(" tuple_body ")" {
-        $$ = NODE(Tuple, $2, @$);
-    }
-    | unit {
-        $$ = NODE(Tuple, @$);
+    | multi_tuple {
+        $$ = NODE(Tuple, $1, @$);
     }
 
 simple_expression
@@ -228,23 +247,18 @@ simple_expression
     | block {
         $$ = $1;
     }
-    | arg_type "=>" simple_expression {
-        std::vector<AST::Function::arg_t> args;
-        args.emplace_back($1);
-        $$ = NODE(Function, std::move(args), $3, @$);
-    }
-    | opt_arg_types "=>" simple_expression {
-        $$ = NODE(Function, $1, $3, @$);
-    }
-    | opt_arg_types "->" type "=>" simple_expression {
-        $$ = NODE(Function, $1, $3, $5, @$);
-    }
-    | "(" call_expression ")" {
+    | "(" func_expression ")" {
         $$ = $2;
     }
 
+multi_tuple
+    : "(" tuple_body ")" {
+        $$ = $2;
+    }
+    | unit {}
+
 tuple_body
-    : call_expression "," {
+    : func_expression "," {
         $$.push_back($1);
     }
     | tuple_values
@@ -253,11 +267,11 @@ tuple_body
     }
 
 tuple_values
-    : call_expression "," call_expression {
+    : func_expression "," func_expression {
         $$.push_back($1);
         $$.push_back($3);
     }
-    | tuple_values "," call_expression {
+    | tuple_values "," func_expression {
         $$ = $1;
         $$.push_back($3);
     }
@@ -312,12 +326,29 @@ arg_types
 
 arg_type
     : "identifier" ":" type {
-        $$ = std::make_tuple($1, $3, @$);
+        auto pattern = AST::Function::Pattern{$1, $3};
+        $$ = std::make_pair(std::move(pattern), @$);
     }
 
 type
-    : simple_type
+    : tuple_type
     | func_type
+
+tuple_type
+    : simple_type
+    | tuple_types {
+        $$ = NODE(TupleType, $1, @$);
+    }
+
+func_type
+    : simple_type "->" type {
+        auto types = std::vector<std::unique_ptr<AST::Type>>();
+        types.push_back($1);
+        $$ = NODE(FuncType, std::move(types), $3, @$);
+    }
+    | tuple_types "->" type {
+        $$ = NODE(FuncType, $1, $3, @$);
+    }
 
 simple_type
     : "type name" {
@@ -326,27 +357,17 @@ simple_type
     | "(" type ")" {
         $$ = $2;
     }
-    | tuple_type
 
-func_type
-    : simple_type "->" type {
-        $$ = NODE(FuncType, $1, $3, @$);
-    }
-
-tuple_type
-    : unit {
-        $$ = NODE(TupleType, @$);
-    }
+tuple_types
+    : unit {}
     | "(" type "," ")" {
-        std::vector<std::unique_ptr<AST::Type>> types;
-        types.emplace_back($2);
-        $$ = NODE(TupleType, std::move(types), @$);
+        $$.emplace_back($2);
     }
     | "(" types ")" {
-        $$ = NODE(TupleType, $2, @$);
+        $$ = $2;
     }
     | "(" types "," ")" {
-        $$ = NODE(TupleType, $2, @$);
+        $$ = $2;
     }
 
 types
@@ -454,9 +475,11 @@ symbol_kind_name(const yy::Parser::symbol_kind_type &kind) {
         case Parser::symbol_kind::S_line:
         case Parser::symbol_kind::S_expression:
         case Parser::symbol_kind::S_definition:
+        case Parser::symbol_kind::S_func_expression:
         case Parser::symbol_kind::S_call_expression:
         case Parser::symbol_kind::S_tuple_expression:
         case Parser::symbol_kind::S_simple_expression:
+        case Parser::symbol_kind::S_multi_tuple:
         case Parser::symbol_kind::S_tuple_body:
         case Parser::symbol_kind::S_tuple_values:
         case Parser::symbol_kind::S_block:
@@ -465,6 +488,7 @@ symbol_kind_name(const yy::Parser::symbol_kind_type &kind) {
         case Parser::symbol_kind::S_type:
         case Parser::symbol_kind::S_func_type:
         case Parser::symbol_kind::S_tuple_type:
+        case Parser::symbol_kind::S_tuple_types:
         case Parser::symbol_kind::S_simple_type:
         case Parser::symbol_kind::S_opt_arg_types:
         case Parser::symbol_kind::S_arg_types:

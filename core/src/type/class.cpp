@@ -15,7 +15,7 @@ Class::Class(std::string name, std::optional<yy::location> loc)
 Class::~Class() = default;
 
 void
-Class::print(std::ostream &os) const {
+Class::print(std::ostream &os, bool) const {
     os << name_;
 }
 
@@ -25,7 +25,7 @@ Class::get_name() const {
 }
 
 Relation
-Class::compare(const Type &other) const {
+Class::get_relation(const Type &other) const {
     const auto *cl_ptr = dynamic_cast<const Class *>(&other);
     if (!cl_ptr) return Relation::UNRELATED;
 

@@ -37,16 +37,22 @@ main(int argc, char **argv) {
     auto path = std::filesystem::relative(argv[1]).string();
     driver.parse(&path);
 
+    std::cout << "[";
+    std::string sep;
     for (auto &node : driver.ast()) {
+        std::cout << sep;
+        sep = ",\n";
         node->to_json(std::cout);
-        std::cout << "\n";
     }
+    std::cout << "]\n";
 
     auto ctx = driver.type_check();
 
     for (auto &message : driver.errors()) {
         message.print(driver.lines(), std::cout);
     }
+
+    ctx.print_symbols(std::cout);
 
     return 0;
 }

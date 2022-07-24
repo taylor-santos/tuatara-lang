@@ -12,8 +12,8 @@
 namespace TypeChecker {
 
 enum class Relation {
-    SAME_TYPE,
     SUB_TYPE,
+    SAME_TYPE,
     SUPER_TYPE,
     UNRELATED,
 };
@@ -23,6 +23,9 @@ enum class Relation {
 // Relation that if passed into this function will return true.
 bool
 is_a_relationship(Relation rel);
+
+Relation
+invert(Relation rel);
 
 class Type {
 public:
@@ -34,10 +37,17 @@ public:
     get_loc() const;
 
     virtual void
-    print(std::ostream &os) const = 0;
+    print(std::ostream &os, bool paren = false) const = 0;
 
+    [[nodiscard]] std::string
+    print() const;
+
+    [[nodiscard]] Relation
+    compare(const Type &other) const;
+
+protected:
     [[nodiscard]] virtual Relation
-    compare(const Type &other) const = 0;
+    get_relation(const Type &other) const = 0;
 
 private:
     std::optional<yy::location> loc_;

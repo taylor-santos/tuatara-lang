@@ -18,11 +18,29 @@
 // conflicting_value : Foo = 123;
 
 
-function_call := a: U64 => b: U64 => c: U64 -> U64 => a;
+// func := a: U64 => b: U64 => c: U64 -> () => c a;
+//
+// a := func 1;
+// b := a 2;
+// c := b (x: U64 => x);
+//
+// println := (message: U64) => {
+//     x := 5;
+//     y := 5;
+//     message
+// };
 
+// super : (U64,)    = (1,);
+// sub   : (U64,U64) = (1,2);
+//
+// func := x: (U64,U64) => 5;
+//
+// func(5);
 
-println := (message: U64) -> Dummy => {
-    x := 5;
-    y := 2;
-    message
-};
+foo := (x:U64, y:U64) => 5;
+bar := t:(U64,U64) => 5;
+
+baz := f:((U64,U64),)->U64 => ();
+
+baz foo;
+baz bar;

@@ -14,7 +14,7 @@ Object::Object(const Class &cl, yy::location loc)
 Object::~Object() = default;
 
 void
-Object::print(std::ostream &os) const {
+Object::print(std::ostream &os, bool) const {
     os << class_;
 }
 
@@ -24,7 +24,7 @@ Object::get_class() const {
 }
 
 Relation
-Object::compare(const Type &other) const {
+Object::get_relation(const Type &other) const {
     const auto *obj_ptr = dynamic_cast<const Object *>(&other);
     if (!obj_ptr) return Relation::UNRELATED;
 

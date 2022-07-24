@@ -11,26 +11,29 @@
 
 #include <ostream>
 #include <unordered_map>
-#include <sstream>
 
 namespace AST {
 
 Function::Function(
     std::vector<arg_t>                   &&args,
+    const yy::location                    &args_loc,
     std::unique_ptr<AST::SimpleExpression> body,
     const yy::location                    &loc)
     : Node(loc)
     , args_{std::move(args)}
+    , args_loc_{args_loc}
     , ret_type_{}
     , body_{std::move(body)} {}
 
 Function::Function(
     std::vector<arg_t>                   &&args,
+    const yy::location                    &args_loc,
     std::unique_ptr<AST::Type>             ret_type,
     std::unique_ptr<AST::SimpleExpression> body,
     const yy::location                    &loc)
     : Node(loc)
     , args_{std::move(args)}
+    , args_loc_{args_loc}
     , ret_type_{std::move(ret_type)}
     , body_{std::move(body)} {}
 
@@ -49,9 +52,9 @@ Function::to_json(std::ostream &os) const {
         os << sep;
         sep = ",";
         os << "{"
-           << R"("name":")" << std::get<0>(arg) << R"(",)"
+           << R"("name":")" << arg.first.name << R"(",)"
            << R"("type":)";
-        std::get<1>(arg)->to_json(os);
+        arg.first.type->to_json(os);
         os << "}";
     }
     os << "]";
@@ -68,10 +71,15 @@ Function::to_json(std::ostream &os) const {
 
 const TypeChecker::Type &
 Function::get_type(TypeChecker::Context &ctx) const {
-    auto new_ctx    = ctx;
+    ctx_.emplace(ctx);
+    auto &new_ctx = *ctx_;
+
     auto used_names = std::unordered_map<std::string, const arg_t *>();
+    auto arg_types  = std::vector<const TypeChecker::Type *>();
+    auto failed     = false;
     for (auto &arg : args_) {
-        auto &[name, type, loc] = arg;
+        auto &[pattern, loc] = arg;
+        auto &name           = pattern.name;
 
         auto prev = used_names.find(name);
         if (prev != used_names.end()) {
@@ -91,45 +99,62 @@ Function::get_type(TypeChecker::Context &ctx) const {
                 .with_message(name, color::bold_red)
                 .with_message("` reused here", color::bold_gray);
             ctx.add_message(message);
-            return ctx.add_type(std::make_unique<TypeChecker::Error>(get_loc()));
+            failed = true;
         }
 
-        auto &arg_type = type->get_type(new_ctx);
+        auto &arg_type = pattern.type->get_type(new_ctx);
         new_ctx.set_symbol(name, arg_type, loc);
         used_names[name] = &arg;
+        arg_types.push_back(&arg_type);
+    }
+
+    if (failed) {
+        return ctx.add_type(std::make_unique<TypeChecker::Error>(get_loc()));
     }
 
     auto &body_type = body_->get_type(new_ctx);
 
-    if (ret_type_) {
-        auto &ret_type = (*ret_type_)->get_type(new_ctx);
-        auto  rel      = body_type.compare(ret_type);
-        if (!TypeChecker::is_a_relationship(rel)) {
-            using namespace print;
-            ctx.set_failure(true);
-            auto ret_loc = (*ret_type_)->get_loc();
-            auto message = Message::error(ret_loc.begin).with_message("TODO", color::bold_gray);
-            {
-                std::stringstream ret_str;
-                ret_type.print(ret_str);
-                message.with_detail(ret_loc, color::bold_red)
-                    .with_message(ret_str.str(), color::bold_red);
-            }
-            {
-                std::stringstream body_str;
-                body_type.print(body_str);
-                auto body_loc = body_type.get_loc().value_or(body_->get_loc());
-                message.with_detail(body_loc, color::bold_yellow)
-                    .with_message(body_str.str(), color::bold_yellow);
-            }
-            ctx.add_message(message);
-            return ctx.add_type(std::make_unique<TypeChecker::Error>(get_loc()));
-        }
+    if (!ret_type_) {
+        // TODO: Make location of function type only the declaration, not the whole node.
+        return ctx.add_type(std::make_unique<TypeChecker::Func>(arg_types, body_type, get_loc()));
+    }
+
+    auto &ret_type = (*ret_type_)->get_type(new_ctx);
+    auto  rel      = body_type.compare(ret_type);
+    if (!TypeChecker::is_a_relationship(rel)) {
+        using namespace print;
+        ctx.set_failure(true);
+
+        auto ret_loc  = (*ret_type_)->get_loc();
+        auto body_loc = body_type.get_loc().value_or(body_->get_loc());
+        auto ret_str  = ret_type.print();
+        auto body_str = body_type.print();
+
+        auto message =
+            Message::error(body_loc.begin)
+                .with_message("function declared with return type `", color::bold_gray)
+                .with_message(ret_str, color::bold_red)
+                .with_message("` but returns a value of incompatible type `", color::bold_gray)
+                .with_message(body_str, color::bold_yellow)
+                .with_message("`", color::bold_gray);
+
+        message.with_detail(ret_loc, color::bold_yellow)
+            .with_message("return type `", color::bold_gray)
+            .with_message(ret_str, color::bold_yellow)
+            .with_message("` declared here", color::bold_gray);
+
+        message.with_detail(body_loc, color::bold_red)
+            .with_message("returns value with type `", color::bold_gray)
+            .with_message(body_str, color::bold_red)
+            .with_message("` here", color::bold_gray);
+
+        ctx.add_message(message);
+        return ctx.add_type(std::make_unique<TypeChecker::Error>(get_loc()));
     }
 
     ctx.set_failure(ctx.did_fail() || new_ctx.did_fail());
 
-    return ctx.add_type(std::make_unique<TypeChecker::Error>(get_loc())); // TODO
+    return ctx.add_type(std::make_unique<TypeChecker::Func>(arg_types, ret_type, get_loc()));
 }
 
 } // namespace AST

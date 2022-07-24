@@ -12,6 +12,7 @@
 
 #include <utility>
 #include <ostream>
+#include <algorithm>
 
 namespace AST {
 
@@ -32,7 +33,7 @@ TupleType::to_json(std::ostream &os) const {
        << R"("location":)";
     loc_to_json(get_loc(), os);
     os << ","
-       << R"("types":[")";
+       << R"("types":[)";
     std::string sep;
     for (auto &type : types_) {
         os << sep;
@@ -44,7 +45,12 @@ TupleType::to_json(std::ostream &os) const {
 
 const TypeChecker::Type &
 TupleType::get_type(TypeChecker::Context &ctx) const {
-    return ctx.add_type(std::make_unique<TypeChecker::Error>(get_loc())); // TODO
+    std::vector<const TypeChecker::Type *> types;
+    types.reserve(types_.size());
+    std::transform(types_.begin(), types_.end(), std::back_inserter(types), [&ctx](auto &type) {
+        return &type->get_type(ctx);
+    });
+    return ctx.add_type(std::make_unique<TypeChecker::Tuple>(types, get_loc()));
 }
 
 } // namespace AST

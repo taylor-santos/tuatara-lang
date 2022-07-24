@@ -94,12 +94,17 @@ Variable::get_type(TypeChecker::Context &ctx) const {
                     break;
             }
             ctx.add_message(message);
-            // We can fall through and return `t` here instead of an `Error` type, because the
+            // We can fall through and return `*type` here instead of an `Error` type, because the
             // expected type of the variable can still be known even though it isn't allowed to be
             // used. This is still a type error, but later type errors can still be inferred from
             // this type.
         } else {
-            ctx.set_symbol(name_, *type, get_loc(), Uninit{Uninit::Reason::MOVED_FROM, get_loc()});
+            /* TODO: 7/18/2022 - Disabling this for now. Simply accessing the variable by name does
+             * not necessarily move it, for example when calling a function by name it doesn't move
+             * the function. The move action should probably be done via a different mechanism.
+             */
+            // ctx.set_symbol(name_, *type, get_loc(), Uninit{Uninit::Reason::MOVED_FROM,
+            // get_loc()});
         }
         return *type;
     }

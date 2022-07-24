@@ -12,12 +12,12 @@ Error::Error(yy::location loc)
 Error::~Error() = default;
 
 void
-Error::print(std::ostream &os) const {
+Error::print(std::ostream &os, bool) const {
     os << "<error>";
 }
 
 Relation
-Error::compare(const Type &) const {
+Error::get_relation(const Type &) const {
     return Relation::UNRELATED;
 }
 

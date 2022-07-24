@@ -6,8 +6,10 @@
 #include "type/error.hpp"
 #include "json.hpp"
 #include "type/type_checker.hpp"
+#include "type/tuple.hpp"
 
 #include <ostream>
+#include <algorithm>
 
 namespace AST {
 
@@ -40,7 +42,12 @@ Tuple::to_json(std::ostream &os) const {
 
 const TypeChecker::Type &
 Tuple::get_type(TypeChecker::Context &ctx) const {
-    return ctx.add_type(std::make_unique<TypeChecker::Error>(get_loc())); // TODO
+    std::vector<const TypeChecker::Type *> types;
+    types.reserve(values_.size());
+    std::transform(values_.begin(), values_.end(), std::back_inserter(types), [&ctx](auto &value) {
+        return &value->get_type(ctx);
+    });
+    return ctx.add_type(std::make_unique<TypeChecker::Tuple>(types, get_loc()));
 }
 
 } // namespace AST

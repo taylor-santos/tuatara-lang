@@ -6,6 +6,7 @@
 
 #include "type/type.hpp"
 #include "type/tuple.hpp"
+#include "type/type_checker.hpp"
 
 #include <vector>
 #include <memory>
@@ -14,19 +15,26 @@ namespace TypeChecker {
 
 class Func final : public Type {
 public:
-    Func(std::unique_ptr<Tuple> arg_type, std::unique_ptr<Type> ret_type, yy::location loc);
+    Func(std::vector<const Type *> arg_types, const Type &ret_type, yy::location loc);
 
     ~Func() override;
 
     void
-    print(std::ostream &os) const override;
+    print(std::ostream &os, bool paren) const override;
 
+    [[nodiscard]] const std::vector<const Type *> &
+    arg_types() const;
+
+    [[nodiscard]] const Type &
+    ret_type() const;
+
+protected:
     [[nodiscard]] Relation
-    compare(const Type &other) const override;
+    get_relation(const Type &other) const override;
 
 private:
-    std::unique_ptr<Tuple> arg_type_;
-    std::unique_ptr<Type>  ret_type_;
+    std::vector<const Type *> arg_types_;
+    const Type               &ret_type_;
 };
 
 } // namespace TypeChecker
