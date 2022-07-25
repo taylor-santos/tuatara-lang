@@ -22,14 +22,14 @@ public:
     using arg_t = std::pair<Pattern, yy::location>;
     Function(
         std::vector<arg_t>                   &&args,
-        const yy::location                    &args_loc,
+        const yy::location                    &sig_loc,
         std::unique_ptr<AST::SimpleExpression> body,
         const yy::location                    &loc);
 
     Function(
         std::vector<arg_t>                   &&args,
-        const yy::location                    &args_loc,
         std::unique_ptr<AST::Type>             ret_type,
+        const yy::location                    &args_loc,
         std::unique_ptr<AST::SimpleExpression> body,
         const yy::location                    &loc);
 
@@ -43,7 +43,7 @@ public:
 
 private:
     std::vector<arg_t>                          args_;
-    yy::location                                args_loc_;
+    yy::location                                sig_loc_;
     std::optional<std::unique_ptr<AST::Type>>   ret_type_;
     std::unique_ptr<AST::SimpleExpression>      body_;
     mutable std::optional<TypeChecker::Context> ctx_;

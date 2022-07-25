@@ -16,24 +16,24 @@ namespace AST {
 
 Function::Function(
     std::vector<arg_t>                   &&args,
-    const yy::location                    &args_loc,
+    const yy::location                    &sig_loc,
     std::unique_ptr<AST::SimpleExpression> body,
     const yy::location                    &loc)
     : Node(loc)
     , args_{std::move(args)}
-    , args_loc_{args_loc}
+    , sig_loc_{sig_loc}
     , ret_type_{}
     , body_{std::move(body)} {}
 
 Function::Function(
     std::vector<arg_t>                   &&args,
-    const yy::location                    &args_loc,
     std::unique_ptr<AST::Type>             ret_type,
+    const yy::location                    &args_loc,
     std::unique_ptr<AST::SimpleExpression> body,
     const yy::location                    &loc)
     : Node(loc)
     , args_{std::move(args)}
-    , args_loc_{args_loc}
+    , sig_loc_{args_loc}
     , ret_type_{std::move(ret_type)}
     , body_{std::move(body)} {}
 
@@ -109,13 +109,14 @@ Function::get_type(TypeChecker::Context &ctx) const {
     }
 
     if (failed) {
-        return ctx.add_type(std::make_unique<TypeChecker::Error>(get_loc()));
+        return ctx.add_type(std::make_unique<TypeChecker::Error>(sig_loc_));
     }
 
     auto &body_type = body_->get_type(new_ctx);
 
     if (!ret_type_) {
-        // TODO: Make location of function type only the declaration, not the whole node.
+        // Unfortunately the location of the type needs to include the entire body of the function,
+        // because the user did not specify an explicit return type.
         return ctx.add_type(std::make_unique<TypeChecker::Func>(arg_types, body_type, get_loc()));
     }
 
@@ -149,12 +150,12 @@ Function::get_type(TypeChecker::Context &ctx) const {
             .with_message("` here", color::bold_gray);
 
         ctx.add_message(message);
-        return ctx.add_type(std::make_unique<TypeChecker::Error>(get_loc()));
+        return ctx.add_type(std::make_unique<TypeChecker::Error>(sig_loc_));
     }
 
     ctx.set_failure(ctx.did_fail() || new_ctx.did_fail());
 
-    return ctx.add_type(std::make_unique<TypeChecker::Func>(arg_types, ret_type, get_loc()));
+    return ctx.add_type(std::make_unique<TypeChecker::Func>(arg_types, ret_type, sig_loc_));
 }
 
 } // namespace AST

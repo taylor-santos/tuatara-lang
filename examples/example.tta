@@ -54,3 +54,10 @@ bar (arg, 3);
 baz foo;
 baz bar;
 
+fn := (x: U64) -> U64 => {
+    5
+};
+
+fn(1,2);
+
+

@@ -16,6 +16,6 @@ TEST_CASE("print") {
     auto loc  = yy::location();
     auto node = TypeChecker::Object(cl, loc);
     auto out  = std::stringstream();
-    node.print(out);
+    node.print(out, false);
     CHECK(out.str() == "[object [class Foo]]");
 }

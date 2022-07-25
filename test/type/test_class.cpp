@@ -13,6 +13,6 @@ TEST_SUITE_BEGIN("Type/Class");
 TEST_CASE("print") {
     auto node = TypeChecker::Class("Foo");
     auto out  = std::stringstream();
-    node.print(out);
+    node.print(out, false);
     CHECK(out.str() == "[class Foo]");
 }

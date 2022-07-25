@@ -383,56 +383,71 @@ generate_source_line(
     for (auto *const detail : in_ds) {
         color_text(line, detail->loc.begin.column, detail->loc.end.column, detail->color);
     }
-    const detail *multi_cross = nullptr;
-    auto          multi_line  = std::vector<colored_text>();
-    for (auto mult : multi_ds) {
-        if (mult) {
-            if (mult->loc.begin.line == line_number) {
-                if (multi_cross) {
-                    multi_line.emplace_back(chars.rarrow, multi_cross->color);
-                    multi_line.emplace_back(chars.ltop, mult->color);
-                    multi_cross = mult;
+    if (!multi_ds.empty()) {
+        const detail *multi_cross = nullptr;
+        auto          multi_line  = std::vector<colored_text>();
+        auto          first       = true;
+        for (auto mult : multi_ds) {
+            if (mult) {
+                if (mult->loc.begin.line == line_number) {
+                    if (multi_cross) {
+                        multi_line.emplace_back(chars.rarrow, multi_cross->color);
+                        multi_line.emplace_back(chars.ltop, mult->color);
+                        multi_cross = mult;
+                    } else {
+                        multi_cross = mult;
+                        multi_line.emplace_back(
+                            SS() << (first ? "" : " ") << chars.ltop,
+                            mult->color);
+                    }
+                } else if (mult->loc.end.line == line_number) {
+                    if (multi_cross) {
+                        multi_line.emplace_back(chars.rarrow, multi_cross->color);
+                        multi_line.emplace_back(chars.lcross, mult->color);
+                        multi_cross = mult;
+                    } else {
+                        multi_line.emplace_back(
+                            SS() << (first ? "" : " ") << chars.lcross,
+                            mult->color);
+                        multi_cross = mult;
+                    }
                 } else {
-                    multi_cross = mult;
-                    multi_line.emplace_back(SS() << " " << chars.ltop, mult->color);
-                }
-            } else if (mult->loc.end.line == line_number) {
-                if (multi_cross) {
-                    multi_line.emplace_back(chars.rarrow, multi_cross->color);
-                    multi_line.emplace_back(chars.lcross, mult->color);
-                    multi_cross = mult;
-                } else {
-                    multi_line.emplace_back(SS() << " " << chars.lcross, mult->color);
-                    multi_cross = mult;
+                    if (multi_cross) {
+                        multi_line.emplace_back(
+                            SS() << chars.hbar << chars.hbar,
+                            multi_cross->color);
+                    } else {
+                        multi_line.emplace_back(
+                            SS() << (first ? "" : " ") << chars.vbar,
+                            mult->color);
+                    }
                 }
             } else {
                 if (multi_cross) {
                     multi_line.emplace_back(SS() << chars.hbar << chars.hbar, multi_cross->color);
                 } else {
-                    multi_line.emplace_back(SS() << " " << chars.vbar, mult->color);
+                    multi_line.emplace_back(first ? " " : "  ");
                 }
             }
-        } else {
+            first = false;
+        }
+        for (auto i = (int)multi_ds.size(); i < multis_width; i++) {
             if (multi_cross) {
                 multi_line.emplace_back(SS() << chars.hbar << chars.hbar, multi_cross->color);
             } else {
                 multi_line.emplace_back("  ");
             }
         }
-    }
-    for (auto i = (int)multi_ds.size(); i < multis_width; i++) {
         if (multi_cross) {
-            multi_line.emplace_back(SS() << chars.hbar << chars.hbar, multi_cross->color);
-        } else {
+            multi_line.emplace_back(SS() << chars.rarrow << " ", multi_cross->color);
+        } else if (multis_width) {
             multi_line.emplace_back("  ");
         }
+        line.insert(line.begin(), multi_line.begin(), multi_line.end());
+    } else {
+        // No multi-line details
+        line.emplace(line.begin(), " ");
     }
-    if (multi_cross) {
-        multi_line.emplace_back(SS() << chars.rarrow << " ", multi_cross->color);
-    } else if (multis_width) {
-        multi_line.emplace_back("  ");
-    }
-    line.insert(line.begin(), multi_line.begin(), multi_line.end());
     return line;
 }
 
@@ -490,16 +505,17 @@ generate_multi_row_line(
     const auto &chars      = ctx.chars;
     auto        line       = std::vector<colored_text>();
     auto       *mult_cross = (const detail *)nullptr;
+    auto        first      = true;
     for (auto mult : details) {
         if (mult) {
             if (mult == *it) {
                 mult_cross = mult;
-                line.emplace_back(SS() << " " << chars.lbot, mult->color);
+                line.emplace_back(SS() << (first ? "" : " ") << chars.lbot, mult->color);
             } else {
                 if (mult_cross) {
                     line.emplace_back(SS() << chars.hbar << chars.hbar, mult_cross->color);
                 } else {
-                    line.emplace_back(SS() << " " << chars.vbar, mult->color);
+                    line.emplace_back(SS() << (first ? "" : " ") << chars.vbar, mult->color);
                 }
             }
 
@@ -507,9 +523,10 @@ generate_multi_row_line(
             if (mult_cross) {
                 line.emplace_back(SS() << chars.hbar << chars.hbar, mult_cross->color);
             } else {
-                line.emplace_back("  ");
+                line.emplace_back(first ? " " : "  ");
             }
         }
+        first = false;
     }
     *it = nullptr;
 
@@ -519,14 +536,19 @@ generate_multi_row_line(
 
     line.emplace_back(repeat(chars.hbar, mult_cross->loc.end.column - 1), mult_cross->color);
 
-    line.emplace_back(SS() << " ", mult_cross->color);
+    line.emplace_back(" ");
     line.insert(line.end(), mult_cross->message.begin(), mult_cross->message.end());
 
     return line;
 }
 
+struct overlap {
+    const detail *detail;
+    bool          needs_underline;
+};
+
 static std::vector<colored_text>
-generate_under_line(std::queue<std::pair<const detail *, bool>> &overlaps, const Context &ctx) {
+generate_under_line(std::queue<overlap> &overlaps, const Context &ctx) {
     auto &chars = ctx.chars;
 
     auto line = std::vector<colored_text>{};
@@ -539,10 +561,10 @@ generate_under_line(std::queue<std::pair<const detail *, bool>> &overlaps, const
         auto end       = detail->loc.end.column;
         auto underline = col < begin ? std::string(begin - col, ' ') : "";
         col            = begin;
-        if (i == n - 1 || end < overlaps.front().first->loc.begin.column) {
+        if (i == n - 1 || end < overlaps.front().detail->loc.begin.column) {
             auto width = end - begin;
             if (i < n - 1) {
-                auto gap         = overlaps.front().first->loc.begin.column - end;
+                auto gap         = overlaps.front().detail->loc.begin.column - end;
                 auto message_len = std::accumulate(
                     detail->message.begin(),
                     detail->message.end(),
@@ -553,7 +575,7 @@ generate_under_line(std::queue<std::pair<const detail *, bool>> &overlaps, const
                 bool fits_gap = message_len + 2 <= gap;
                 if (needs_underline) {
                     if (width > 0) {
-                        underline += repeat(chars.hbar, width);
+                        underline += repeat(' ', width);
                         col += width;
                         if (!fits_gap) {
                             underline += chars.rtop;
@@ -664,7 +686,7 @@ generate_output(
                     text.emplace_back(std::string(2 * (multis_width + 1), ' '));
                 }
                 text.emplace_back(source_lines[single_line - 1], color::gray);
-                output.push_back(std::move(text));
+                output.emplace_back(std::move(text));
             }
         }
         prev_line = line_number;
@@ -675,38 +697,46 @@ generate_output(
             auto line = generate_source_line(all_ds, line_number, multis_width, ctx);
             line.emplace(
                 line.begin(),
-                SS() << std::setw(last_line_width) << std::right << line_number << " " << chars.vbar
-                     << " ",
+                SS() << std::setw(last_line_width) << std::right << line_number << " "
+                     << chars.vbar,
                 color::gray);
             output.emplace_back(line);
         }
 
         if (!in_ds.empty()) {
-            auto overlaps =
-                std::queue<std::pair<const detail *, bool>>(); // (detail, needs_underline)
+            auto overlaps = std::queue<overlap>();
             for (auto *const d : in_ds) {
                 overlaps.emplace(d, true);
             }
             while (!overlaps.empty()) {
-                auto line       = generate_under_line(overlaps, ctx);
-                auto multi_line = std::vector<colored_text>();
-                for (auto mult : multi_ds) {
-                    if (mult) {
-                        multi_line.emplace_back(SS() << " " << chars.vbar, mult->color);
-                    } else {
+                auto line = generate_under_line(overlaps, ctx);
+                if (!multi_ds.empty()) {
+                    auto multi_line = std::vector<colored_text>();
+                    auto first      = true;
+                    for (auto mult : multi_ds) {
+                        if (mult) {
+                            multi_line.emplace_back(
+                                SS() << (first ? "" : " ") << chars.vbar,
+                                mult->color);
+                        } else {
+                            multi_line.emplace_back(first ? " " : "  ");
+                        }
+                        first = false;
+                    }
+                    for (auto i = (int)multi_ds.size(); i < multis_width; i++) {
                         multi_line.emplace_back("  ");
                     }
+                    if (multis_width) {
+                        multi_line.emplace_back("  ");
+                    }
+                    line.insert(line.begin(), multi_line.begin(), multi_line.end());
+                } else {
+                    // No multi-line details
+                    line.emplace(line.begin(), " ");
                 }
-                for (auto i = (int)multi_ds.size(); i < multis_width; i++) {
-                    multi_line.emplace_back("  ");
-                }
-                if (multis_width) {
-                    multi_line.emplace_back("  ");
-                }
-                line.insert(line.begin(), multi_line.begin(), multi_line.end());
                 line.emplace(
                     line.begin(),
-                    SS() << std::string(last_line_width + 1, ' ') << chars.vbar_break << " ",
+                    SS() << std::string(last_line_width + 1, ' ') << chars.vbar_break,
                     color::gray);
                 output.push_back(line);
             }
@@ -716,7 +746,7 @@ generate_output(
             if (!line) break;
             line->emplace(
                 line->begin(),
-                SS() << std::string(last_line_width + 1, ' ') << chars.vbar_break << " ",
+                SS() << std::string(last_line_width + 1, ' ') << chars.vbar_break,
                 color::gray);
             output.push_back(*line);
         }

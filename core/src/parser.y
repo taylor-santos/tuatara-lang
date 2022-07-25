@@ -216,7 +216,8 @@ func_expression
         $$ = NODE(Function, $1, @1, $3, @$);
     }
     | opt_arg_types "->" type "=>" func_expression {
-        $$ = NODE(Function, $1, @1, $3, $5, @$);
+        auto loc = yy::location{@1.begin, @3.end};
+        $$ = NODE(Function, $1, $3, loc, $5, @$);
     }
 
 call_expression
