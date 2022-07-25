@@ -84,47 +84,66 @@ Call::get_type(TypeChecker::Context &ctx) const {
         return ctx.add_type(std::make_unique<TypeChecker::Error>(get_loc()));
     }
 
-    auto &expected_types = func_type->arg_types();
+    const auto *given_types    = &arg_types;
+    const auto *expected_types = &func_type->arg_types();
 
-    if (arg_types.size() != expected_types.size()) {
+    // Possible tuple-argument expansion
+    if (given_types->size() == 1 && expected_types->size() != 1) {
+        auto *tup = dynamic_cast<const TypeChecker::Tuple *>(arg_types.front());
+        if (tup) {
+            given_types = &tup->types();
+        }
+    }
+    // Possible argument-tuple expansion
+    if (arg_types.size() != 1 && expected_types->size() == 1) {
+        auto *tup = dynamic_cast<const TypeChecker::Tuple *>(expected_types->front());
+        if (tup) {
+            expected_types = &tup->types();
+        }
+    }
+
+    if (given_types->size() != expected_types->size()) {
         using namespace print;
         ctx.set_failure(true);
 
         auto message = Message::error(args_loc_.begin)
                            .with_message("function called with ", color::bold_gray)
-                           .with_message(std::to_string(arg_types.size()), color::bold_red)
+                           .with_message(std::to_string(given_types->size()), color::bold_red)
                            .with_message(" argument", color::bold_gray);
-        if (arg_types.size() != 1) message.with_message("s", color::bold_gray);
-        message.with_message(", expects ", color::bold_gray)
-            .with_message(std::to_string(expected_types.size()), color::bold_yellow)
-            .with_message(" argument", color::bold_gray);
-        if (expected_types.size() != 1) message.with_message("s", color::bold_gray);
+        if (given_types->size() != 1) message.with_message("s", color::bold_gray);
+        message.with_message(", but ", color::bold_gray)
+            .with_message(std::to_string(expected_types->size()), color::bold_yellow)
+            .with_message(" argument was expected", color::bold_gray);
+        if (expected_types->size() != 1) message.with_message("s", color::bold_gray);
 
         auto func_name = func_type->Type::print();
 
-        message.with_detail(func_->get_loc(), color::bold_yellow)
+        message.with_detail(func_->get_loc(), color::bold_magenta)
             .with_message("function called here", color::bold_gray);
 
         auto func_loc = func_type->get_loc().value_or(func_->get_loc());
-        message.with_detail(func_loc, color::bold_magenta)
+        message.with_detail(func_loc, color::bold_yellow)
             .with_message("function has type `", color::bold_gray)
             .with_message(func_name, color::bold_yellow)
             .with_message("`, expecting ", color::bold_gray)
-            .with_message(std::to_string(expected_types.size()), color::bold_yellow)
+            .with_message(std::to_string(expected_types->size()), color::bold_yellow)
             .with_message(" argument", color::bold_gray);
+        if (expected_types->size() != 1) message.with_message("s", color::bold_gray);
 
         message.with_detail(args_loc_, color::bold_red)
             .with_message(std::to_string(args_.size()), color::bold_red)
-            .with_message(" arguments applied here", color::bold_gray);
+            .with_message(" argument", color::bold_gray);
+        if (args_.size() != 1) message.with_message("s", color::bold_gray);
+        message.with_message(" applied here", color::bold_gray);
 
         ctx.add_message(message);
         return ctx.add_type(std::make_unique<TypeChecker::Error>(get_loc()));
     }
 
     bool failed = false;
-    for (size_t i = 0; i < arg_types.size(); i++) {
-        auto &got      = arg_types[i];
-        auto &expected = expected_types[i];
+    for (size_t i = 0; i < given_types->size(); i++) {
+        auto &got      = (*given_types)[i];
+        auto &expected = (*expected_types)[i];
         auto  cmp      = got->compare(*expected);
         if (!TypeChecker::is_a_relationship(cmp)) {
             using namespace print;
@@ -135,21 +154,45 @@ Call::get_type(TypeChecker::Context &ctx) const {
             auto exp_name = expected->print();
 
             auto message =
-                Message::error(args_loc_.begin).with_message("argument", color::bold_gray);
-            if (arg_types.size() != 1) {
+                Message::error(args_loc_.begin).with_message("function argument", color::bold_gray);
+            if (given_types->size() != 1) {
                 message.with_message(" ", color::bold_gray)
                     .with_message(std::to_string(i + 1), color::bold_gray);
             }
-            message.with_message(" has type `", color::bold_gray)
+            message.with_message(" given type `", color::bold_gray)
                 .with_message(got_name, color::bold_red)
-                .with_message("` but type `", color::bold_gray)
+                .with_message("`, but type `", color::bold_gray)
                 .with_message(exp_name, color::bold_yellow)
                 .with_message("` was expected", color::bold_gray);
 
             message.with_detail(args_[i]->get_loc(), color::bold_red)
-                .with_message("argument has type `", color::bold_gray)
+                .with_message("function called with type `", color::bold_gray)
                 .with_message(got_name, color::bold_red)
+                .with_message("`, but `", color::bold_gray)
+                .with_message(exp_name, color::bold_yellow)
+                .with_message("` was expected", color::bold_gray);
+
+            auto func_loc = func_type->arg_types()[i]->get_loc().value_or(
+                func_type->get_loc().value_or(func_->get_loc()));
+            message.with_detail(func_loc, color::bold_yellow)
+                .with_message("function expects argument", color::bold_gray);
+            if (given_types->size() != 1) {
+                message.with_message(" ", color::bold_gray)
+                    .with_message(std::to_string(i + 1), color::bold_gray);
+            }
+            message.with_message(" to have type `", color::bold_gray)
+                .with_message(exp_name, color::bold_yellow)
                 .with_message("`", color::bold_gray);
+
+            if (got->get_loc()) {
+                // TODO: Don't show if loc is the same as argument location.
+                // Example: foo(5) will give two different details on the `5` for both the argument
+                // having the wrong type and the `5` being the source of its type.
+                message.with_detail(*got->get_loc(), color::bold_magenta)
+                    .with_message("argument value given type `", color::bold_gray)
+                    .with_message(got_name, color::bold_magenta)
+                    .with_message("` here", color::bold_gray);
+            }
 
             ctx.add_message(message);
         }

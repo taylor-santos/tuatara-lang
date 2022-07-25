@@ -11,7 +11,11 @@ namespace TypeChecker {
 
 Tuple::Tuple(std::vector<const Type *> types, yy::location loc)
     : Type(loc)
-    , types_{std::move(types)} {}
+    , types_{std::move(types)} {
+    if (types_.size() == 1) {
+        throw std::logic_error("Attempting to create a 1-tuple type");
+    }
+}
 
 Tuple::Tuple(yy::location loc)
     : Type(loc)
@@ -33,9 +37,36 @@ Tuple::print(std::ostream &os, bool) const {
 }
 
 Relation
+Tuple::compare(const Type &other) const {
+    // The base Type defines this method to check if `other` is a Tuple type and do Tuple comparison
+    // as if `this` is a 1-tuple. Since this method is overridden by Tuple, only non-Tuple types
+    // are affected by this 1-tuple comparison.
+    return get_relation(other);
+}
+
+Relation
 Tuple::get_relation(const Type &other) const {
+    // TODO: Unify 1-tuple implementation with N-tuple, by creating a 1-vector and treating it as
+    //       the list of types.
     const auto *tup_ptr = dynamic_cast<const Tuple *>(&other);
-    if (!tup_ptr) return Relation::UNRELATED;
+    if (!tup_ptr) {
+        // `other` is of type T, where T != Tuple.
+        // Treat it instead as a 1-tuple of T.
+        if (types_.empty()) {
+            // `this` is a 0-tuple/unit. Unit is a supertype of all types.
+            return Relation::SUPER_TYPE;
+        }
+        // `this` is an N-tuple, where N > 1.
+        // N-tuples can only either be unrelated to or a subtype of 1-tuples, depending on the
+        // relation of its first element.
+        auto cmp = types_.front()->compare(other);
+        switch (cmp) {
+            case Relation::SUB_TYPE:
+            case Relation::SAME_TYPE: return Relation::SUB_TYPE;
+            case Relation::SUPER_TYPE:
+            case Relation::UNRELATED: return Relation::UNRELATED;
+        }
+    }
 
     const auto &tup = *tup_ptr;
 

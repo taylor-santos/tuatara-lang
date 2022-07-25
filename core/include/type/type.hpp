@@ -42,7 +42,7 @@ public:
     [[nodiscard]] std::string
     print() const;
 
-    [[nodiscard]] Relation
+    [[nodiscard]] virtual Relation
     compare(const Type &other) const;
 
 protected:

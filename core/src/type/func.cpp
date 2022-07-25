@@ -19,14 +19,14 @@ Func::~Func() = default;
 void
 Func::print(std::ostream &os, bool paren) const {
     if (paren) os << "(";
-    os << "(";
+    if (arg_types_.size() != 1) os << "(";
     std::string sep;
     for (auto &type : arg_types_) {
         os << sep;
         sep = ", ";
-        type->print(os, true);
+        type->print(os, arg_types_.size() == 1);
     }
-    os << ")";
+    if (arg_types_.size() != 1) os << ")";
     os << "->";
     ret_type_.print(os);
     if (paren) os << ")";
@@ -38,14 +38,30 @@ Func::get_relation(const Type &other) const {
     if (!func_ptr) return Relation::UNRELATED;
     auto &func = *func_ptr;
 
-    if (func.arg_types_.size() != arg_types_.size()) {
+    auto *self_args  = &arg_types_;
+    auto *other_args = &func.arg_types_;
+
+    if (self_args->size() == 1 && other_args->size() != 1) {
+        auto *tup = dynamic_cast<const TypeChecker::Tuple *>(self_args->front());
+        if (tup) {
+            self_args = &tup->types();
+        }
+    }
+    if (self_args->size() != 1 && other_args->size() == 1) {
+        auto *tup = dynamic_cast<const TypeChecker::Tuple *>(other_args->front());
+        if (tup) {
+            other_args = &tup->types();
+        }
+    }
+
+    if (other_args->size() != self_args->size()) {
         return Relation::UNRELATED;
     }
 
     auto temp_rel = Relation::SAME_TYPE;
-    for (size_t i = 0; i < arg_types_.size(); i++) {
-        auto &a   = arg_types_[i];
-        auto &b   = func.arg_types_[i];
+    for (size_t i = 0; i < self_args->size(); i++) {
+        auto &a   = (*self_args)[i];
+        auto &b   = (*other_args)[i];
         auto  rel = a->compare(*b);
         switch (rel) {
             case Relation::UNRELATED: return Relation::UNRELATED;

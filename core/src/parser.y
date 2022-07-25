@@ -119,7 +119,6 @@
 
 %type< std::vector<std::unique_ptr<AST::SimpleExpression>> >
     multi_tuple
-    tuple_body
     tuple_values
 
 %type< std::unique_ptr<AST::Literal> >
@@ -247,24 +246,17 @@ simple_expression
     | block {
         $$ = $1;
     }
-    | "(" func_expression ")" {
+    | "(" func_expression opt_comma ")" {
+        // optional comma to emulate a 1-tuple,
+        // but its value should still just be the contained value
         $$ = $2;
     }
 
 multi_tuple
-    : "(" tuple_body ")" {
+    : "(" tuple_values opt_comma ")" {
         $$ = $2;
     }
     | unit {}
-
-tuple_body
-    : func_expression "," {
-        $$.push_back($1);
-    }
-    | tuple_values
-    | tuple_values "," {
-        $$ = $1;
-    }
 
 tuple_values
     : func_expression "," func_expression {
@@ -354,19 +346,15 @@ simple_type
     : "type name" {
         $$ = NODE(ObjectType, $1, @1, @$);
     }
-    | "(" type ")" {
+    | "(" type opt_comma ")" {
+        // optional comma to emulate a 1-tuple,
+        // but its type should still just be the contained type
         $$ = $2;
     }
 
 tuple_types
     : unit {}
-    | "(" type "," ")" {
-        $$.emplace_back($2);
-    }
-    | "(" types ")" {
-        $$ = $2;
-    }
-    | "(" types "," ")" {
+    | "(" types opt_comma ")" {
         $$ = $2;
     }
 
@@ -379,6 +367,10 @@ types
         $$ = $1;
         $$.push_back($3);
     }
+
+opt_comma
+    : %empty
+    | ","
 
 %%
 
@@ -480,7 +472,6 @@ symbol_kind_name(const yy::Parser::symbol_kind_type &kind) {
         case Parser::symbol_kind::S_tuple_expression:
         case Parser::symbol_kind::S_simple_expression:
         case Parser::symbol_kind::S_multi_tuple:
-        case Parser::symbol_kind::S_tuple_body:
         case Parser::symbol_kind::S_tuple_values:
         case Parser::symbol_kind::S_block:
         case Parser::symbol_kind::S_literal:
@@ -494,6 +485,7 @@ symbol_kind_name(const yy::Parser::symbol_kind_type &kind) {
         case Parser::symbol_kind::S_arg_types:
         case Parser::symbol_kind::S_arg_type:
         case Parser::symbol_kind::S_unit:
+        case Parser::symbol_kind::S_opt_comma:
             break;
     }
     return {{yy::Parser::symbol_name(kind), color::bold_gray}};

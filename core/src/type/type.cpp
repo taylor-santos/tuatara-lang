@@ -22,7 +22,8 @@ is_a_relationship(Relation rel) {
 
 Relation
 invert(Relation rel) {
-    Relation ret;
+    // Initialize to silence warning, despite switch covering all cases
+    Relation ret = Relation::UNRELATED;
     switch (rel) {
         case Relation::SAME_TYPE:
         case Relation::UNRELATED: ret = rel; break;
@@ -51,16 +52,12 @@ Type::print() const {
 
 Relation
 Type::compare(const Type &other) const {
-    /*
-    auto *type = &other;
-    while (true) {
-        // A 1-tuple (T,) is equivalent to T. Use T's compare method instead of Tuple's method.
-        auto *tup = dynamic_cast<const Tuple *>(type);
-        if (!tup) break;
-        type = tup;
+    // Method is virtual and overridden by the Tuple type.
+    // So we can assume that the type of `this` is not a Tuple.
+    auto *tup = dynamic_cast<const Tuple *>(&other);
+    if (tup) {
+        // `this` is not a Tuple, but `other` is.
     }
-    return get_relation(*type);
-     */
     return get_relation(other);
 }
 

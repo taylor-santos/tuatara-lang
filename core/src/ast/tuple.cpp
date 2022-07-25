@@ -15,7 +15,11 @@ namespace AST {
 
 Tuple::Tuple(std::vector<std::unique_ptr<AST::SimpleExpression>> &&values, const yy::location &loc)
     : Node(loc)
-    , values_{std::move(values)} {}
+    , values_{std::move(values)} {
+    if (values_.size() == 1) {
+        throw std::logic_error("Attempting to create a 1-tuple");
+    }
+}
 
 Tuple::Tuple(const yy::location &loc)
     : Node(loc)

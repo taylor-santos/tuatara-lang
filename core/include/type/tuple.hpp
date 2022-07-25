@@ -24,6 +24,9 @@ public:
     [[nodiscard]] const std::vector<const Type *> &
     types() const;
 
+    [[nodiscard]] Relation
+    compare(const Type &other) const override;
+
 protected:
     [[nodiscard]] Relation
     get_relation(const Type &other) const override;

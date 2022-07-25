@@ -17,7 +17,6 @@
 
 // conflicting_value : Foo = 123;
 
-
 // func := a: U64 => b: U64 => c: U64 -> () => c a;
 //
 // a := func 1;
@@ -37,10 +36,21 @@
 //
 // func(5);
 
-foo := (x:U64, y:U64) => 5;
+one_tup := (1,);
+
+foo := (
+    x:U64,
+    y:U64
+    ) => 5;
 bar := t:(U64,U64) => 5;
 
-baz := f:((U64,U64),)->U64 => ();
+baz := f:(U64,U64)->U64 => ();
+
+arg := (1,);
+
+foo (arg, 3);
+bar (arg, 3);
 
 baz foo;
 baz bar;
+

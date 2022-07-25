@@ -18,7 +18,11 @@ namespace AST {
 
 TupleType::TupleType(std::vector<std::unique_ptr<Type>> &&types, const yy::location &loc)
     : Node(loc)
-    , types_{std::move(types)} {}
+    , types_{std::move(types)} {
+    if (types_.size() == 1) {
+        throw std::logic_error("Attempting to create a 1-tuple type");
+    }
+}
 
 TupleType::TupleType(const yy::location &loc)
     : Node(loc)

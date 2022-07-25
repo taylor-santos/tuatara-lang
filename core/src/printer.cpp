@@ -11,10 +11,15 @@
 #include <sstream>
 
 #if defined(_WIN32) || defined(_WIN64)
-#    define NOMINMAX // Prevent collision with std::max
+#    if !defined(NOMINMAX)
+#        define NOMINMAX // Prevent collision with std::max
+#    endif
 #    include <windows.h>
 #endif
 
+#ifdef __MINGW32__
+#    pragma GCC diagnostic ignored "-Wcast-function-type"
+#endif
 #include "rang.hpp"
 
 namespace print {
@@ -63,8 +68,16 @@ operator<<(std::ostream &os, const std::vector<T> &v) {
 }
 
 Message::Builder
-Message::error(yy::position pos) {
-    return Builder(pos).with_message("error: ", color::bold_red);
+Message::error(yy::position pos, std::source_location loc) {
+    return Builder(pos)
+        .with_message("[", color::gray)
+        .with_message(loc.file_name(), color::bold_blue)
+        .with_message(":", color::bold_blue)
+        .with_message(std::to_string(loc.line()), color::bold_blue)
+        .with_message(":", color::bold_blue)
+        .with_message(std::to_string(loc.column()), color::bold_blue)
+        .with_message("]\n", color::gray)
+        .with_message("error: ", color::bold_red);
 }
 
 Message::Message(yy::position pos)
@@ -631,6 +644,9 @@ generate_output(
                         text.emplace_back(
                             SS() << chars.vbar_break << chars.vbar_break << chars.vbar_break,
                             color::gray);
+                        if (last_line_width >= 3)
+                            text.emplace_back(std::string(last_line_width - 2, ' '));
+                        text.emplace_back(chars.vbar, color::gray);
                         output.push_back(std::move(text));
                         single_line = 0;
                         break;
@@ -644,6 +660,9 @@ generate_output(
                     SS() << std::setw(last_line_width) << std::right << single_line << " "
                          << chars.vbar << " ",
                     color::gray);
+                if (multis_width) {
+                    text.emplace_back(std::string(2 * (multis_width + 1), ' '));
+                }
                 text.emplace_back(source_lines[single_line - 1], color::gray);
                 output.push_back(std::move(text));
             }
@@ -702,23 +721,6 @@ generate_output(
             output.push_back(*line);
         }
     }
-
-    /*
-    auto last_line = line_details.rbegin()->first;
-    for (auto line_number = last_line; line_number < (int)source_lines.size(); line_number++) {
-        auto &line = source_lines[line_number];
-        if (line.find_last_not_of(" \t") != std::string::npos) {
-            auto text = std::vector<colored_text>();
-            text.emplace_back(
-                SS() << std::setw(last_line_width) << std::right << (line_number + 1) << " "
-                     << chars.vbar << " ",
-                color::gray);
-            text.emplace_back(line, color::gray);
-            output.push_back(std::move(text));
-            break;
-        }
-    }
-     */
 
     output.push_back(
         {{SS() << repeat(chars.hbar, last_line_width + 1) << chars.rbot, color::gray}});
