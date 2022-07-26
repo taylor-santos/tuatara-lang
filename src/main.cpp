@@ -47,8 +47,8 @@ main(int argc, char **argv) try {
 
     times.push_back(std::chrono::high_resolution_clock::now());
 
-    auto path = std::filesystem::relative(argv[1]).string();
-    driver.parse(&path);
+    auto path         = std::filesystem::relative(argv[1]).string();
+    auto parse_status = driver.parse(&path);
 
     times.push_back(std::chrono::high_resolution_clock::now());
 
@@ -63,7 +63,8 @@ main(int argc, char **argv) try {
     std::cout << "]\n";
      */
 
-    auto ctx = driver.type_check();
+    auto ctx              = driver.type_check();
+    auto typecheck_status = ctx.did_fail();
 
     times.push_back(std::chrono::high_resolution_clock::now());
 
@@ -106,11 +107,11 @@ main(int argc, char **argv) try {
 
         auto w = *std::max_element(lens.begin(), lens.end());
 
-        std::cout << "Initialized in   " << std::setw(w) << strs[0] << "ms\n";
-        std::cout << "Parsed file in   " << std::setw(w) << strs[1] << "ms\n";
-        std::cout << "Type-checked in  " << std::setw(w) << strs[2] << "ms\n";
-        std::cout << "Line count       " << std::setw(w - 4) << strs[3] << "\n";
-        std::cout << "Lines per second " << std::setw(w) << strs[4] << "\n";
+        std::cout << "Init       " << std::setw(w) << strs[0] << "ms\n";
+        std::cout << "Parse      " << std::setw(w) << strs[1] << "ms\n";
+        std::cout << "Type Check " << std::setw(w) << strs[2] << "ms\n";
+        std::cout << "Lines      " << std::setw(w - 4) << strs[3] << "\n";
+        std::cout << "Lines/sec  " << std::setw(w) << strs[4] << "\n";
     }
 
     for (auto &message : driver.errors()) {
@@ -119,7 +120,7 @@ main(int argc, char **argv) try {
 
     ctx.print_symbols(std::cout);
 
-    return ctx.did_fail();
+    return parse_status || typecheck_status;
 } catch (std::exception &e) {
     std::cerr << e.what();
     exit(EXIT_FAILURE);

@@ -6,11 +6,11 @@
 
 #include <string>
 
-#include "ast/simple_expression.hpp"
+#include "ast/expression.hpp"
 
 namespace AST {
 
-class Variable final : public SimpleExpression {
+class Variable final : public Expression {
 public:
     Variable(std::string name, const yy::location &loc);
     ~Variable() override;

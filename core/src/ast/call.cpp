@@ -15,10 +15,10 @@
 namespace AST {
 
 Call::Call(
-    std::unique_ptr<AST::Expression>                    func,
-    std::vector<std::unique_ptr<AST::SimpleExpression>> args,
-    const yy::location                                 &args_loc,
-    const yy::location                                 &loc)
+    std::unique_ptr<AST::Expression>              func,
+    std::vector<std::unique_ptr<AST::Expression>> args,
+    const yy::location                           &args_loc,
+    const yy::location                           &loc)
     : Node(loc)
     , func_{std::move(func)}
     , args_{std::move(args)}
@@ -64,19 +64,18 @@ Call::get_type(TypeChecker::Context &ctx) const {
 
         auto obj_str = obj_type.print();
 
-        auto message =
-            Message::error(func_->get_loc().begin)
-                .with_message("attempting to call an object with type `", color::bold_gray)
-                .with_message(obj_str, color::bold_red)
-                .with_message("`", color::bold_gray);
+        auto message = Message::error(func_->get_loc().begin)
+                           .with_message("attempting to call a value of type `", color::bold_gray)
+                           .with_message(obj_str, color::bold_red)
+                           .with_message("`, expected a function type", color::bold_gray);
 
         message.with_detail(func_->get_loc(), color::bold_red)
-            .with_message("object called here", color::bold_gray);
+            .with_message("value called here", color::bold_gray);
 
         auto type_loc = obj_type.get_loc();
         if (type_loc) {
             message.with_detail(*type_loc, color::bold_yellow)
-                .with_message("object given type `", color::bold_gray)
+                .with_message("value given type `", color::bold_gray)
                 .with_message(obj_str, color::bold_yellow)
                 .with_message("` here", color::bold_gray);
         }

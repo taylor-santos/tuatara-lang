@@ -575,7 +575,7 @@ generate_under_line(std::queue<overlap> &overlaps, const Context &ctx) {
                 bool fits_gap = message_len + 2 <= gap;
                 if (needs_underline) {
                     if (width > 0) {
-                        underline += repeat(' ', width);
+                        underline += repeat(chars.hbar, width);
                         col += width;
                         if (!fits_gap) {
                             underline += chars.rtop;

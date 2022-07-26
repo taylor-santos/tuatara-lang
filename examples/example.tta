@@ -38,26 +38,20 @@
 
 one_tup := (1,);
 
-foo := (
-    x:U64,
-    y:U64
-    ) => 5;
+foo := (x:U64, y:U64) => 5;
 bar := t:(U64,U64) => 5;
 
 baz := f:(U64,U64)->U64 => ();
 
-arg := (1,);
+first := (x:U64[]) => x[0];
 
-foo (arg, 3);
-bar (arg, 3);
+a := (x:U64)=>[x];
+
+foo (1, 2);
+bar (3, 4);
 
 baz foo;
 baz bar;
 
-fn := (x: U64) -> U64 => {
-    5
-};
-
-fn(1,2);
 
 

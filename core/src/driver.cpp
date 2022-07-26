@@ -14,12 +14,13 @@ Driver::~Driver() = default;
 
 bool
 Driver::parse(const std::string *filename) {
+    auto failed  = false;
     auto scanner = yy::Scanner(filename, line_stream_);
-    auto parser  = yy::Parser(scanner, errors_, ast_);
+    auto parser  = yy::Parser(scanner, errors_, ast_, failed);
     scanner.set_debug_level(0);
     parser.set_debug_level(0);
     parser.parse();
-    return !errors_.empty();
+    return failed;
 }
 
 TypeChecker::Context

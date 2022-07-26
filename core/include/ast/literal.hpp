@@ -4,11 +4,11 @@
 
 #pragma once
 
-#include "ast/simple_expression.hpp"
+#include "ast/expression.hpp"
 
 namespace AST {
 
-class Literal : public SimpleExpression {
+class Literal : public Expression {
 public:
     Literal();
     ~Literal() override;

@@ -10,15 +10,13 @@
 #include <optional>
 
 #include "ast/ast.hpp"
+#include "type/class.hpp"
 
 namespace print {
 class Message;
 }
 
 namespace TypeChecker {
-
-class Type;
-class Class;
 
 struct Uninit {
     enum class Reason { NOT_DEFINED, MOVED_FROM } reason;

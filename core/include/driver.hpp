@@ -19,7 +19,7 @@ public:
     Driver(const Driver &) = delete;
     ~Driver();
 
-    bool
+    [[nodiscard]] bool
     parse(const std::string *filename);
 
     TypeChecker::Context

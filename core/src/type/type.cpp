@@ -53,10 +53,24 @@ Type::print() const {
 Relation
 Type::compare(const Type &other) const {
     // Method is virtual and overridden by the Tuple type.
-    // So we can assume that the type of `this` is not a Tuple.
+    // So we can assume that the type of `this` is not a Tuple, and treat it as a 1-tuple.
     auto *tup = dynamic_cast<const Tuple *>(&other);
     if (tup) {
         // `this` is not a Tuple, but `other` is.
+        if (tup->types().empty()) {
+            // `other` is a Unit, and all types are subtypes of Unit
+            return Relation::SUB_TYPE;
+        }
+        // `other` is an N-tuple, where N > 1.
+        // 1-tuples can only either be unrelated to or a supertype of N-tuples, depending on the
+        // relation of its first element.
+        auto cmp = compare(*tup->types().front());
+        switch (cmp) {
+            case Relation::SUPER_TYPE:
+            case Relation::SAME_TYPE: return Relation::SUPER_TYPE;
+            case Relation::SUB_TYPE:
+            case Relation::UNRELATED: return Relation::UNRELATED;
+        }
     }
     return get_relation(other);
 }

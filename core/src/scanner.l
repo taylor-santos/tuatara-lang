@@ -85,6 +85,8 @@ ident          [_0-9a-zA-Z]
 ")" { return yy::Parser::make_RPAREN(loc_); }
 "{" { return yy::Parser::make_LBRACE(loc_); }
 "}" { return yy::Parser::make_RBRACE(loc_); }
+"[" { return yy::Parser::make_LBRACKET(loc_); }
+"]" { return yy::Parser::make_RBRACKET(loc_); }
 
 "->" { return yy::Parser::make_ARROW(loc_); }
 "=>" { return yy::Parser::make_BIG_ARROW(loc_); }

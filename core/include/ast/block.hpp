@@ -4,14 +4,14 @@
 
 #pragma once
 
-#include "ast/simple_expression.hpp"
+#include "ast/expression.hpp"
 
 #include <vector>
 #include <variant>
 
 namespace AST {
 
-class Block final : public SimpleExpression {
+class Block final : public Expression {
 public:
     Block(
         std::vector<std::unique_ptr<AST::Expression>> lines,

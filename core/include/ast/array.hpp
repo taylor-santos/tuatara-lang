@@ -1,5 +1,5 @@
 //
-// Created by taylor-santos on 7/15/2022 at 16:04.
+// Created by taylor-santos on 7/25/2022 at 14:17.
 //
 
 #pragma once
@@ -10,12 +10,12 @@
 
 namespace AST {
 
-class Tuple final : public Expression {
+class Array final : public Expression {
 public:
-    Tuple(std::vector<std::unique_ptr<AST::Expression>> &&values, const yy::location &loc);
-    explicit Tuple(const yy::location &loc);
+    Array(std::vector<std::unique_ptr<AST::Expression>> &&values, const yy::location &loc);
+    explicit Array(const yy::location &loc);
 
-    ~Tuple() override;
+    ~Array() override;
 
     void
     to_json(std::ostream &os) const override;

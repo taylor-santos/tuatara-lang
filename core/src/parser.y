@@ -5,6 +5,7 @@
 %parse-param {class Scanner &scanner}
 %parse-param {std::vector<print::Message> &errors}
 %parse-param {std::vector<std::unique_ptr<AST::Expression>> &ast_out}
+%parse-param {bool &failed}
 
 %define api.namespace {yy}
 %define api.parser.class {Parser}
@@ -85,6 +86,8 @@
     RPAREN      ")"
     LBRACE      "{"
     RBRACE      "}"
+    LBRACKET    "["
+    RBRACKET    "]"
     SEMICOLON   ";"
     TYPE_DECL   ":"
     DEFINE      ":="
@@ -94,7 +97,7 @@
     BIG_ARROW   "=>"
 
 %token< uint64_t >
-    U64     "`U64` literal"
+    U64         "`U64` literal"
 
 %token< std::string >
     IDENT       "identifier"
@@ -103,23 +106,22 @@
 %type< std::vector<std::unique_ptr<AST::Expression>> >
     opt_lines
     lines
+    multi_tuple
+    tuple_values
+    multi_array
+    opt_expressions
+    expressions
 
 %type< std::unique_ptr<AST::Expression> >
     line
     expression
-
-%type< std::unique_ptr<AST::Definition> >
-    definition
-
-%type< std::unique_ptr<AST::SimpleExpression> >
     func_expression
     call_expression
     tuple_expression
     simple_expression
 
-%type< std::vector<std::unique_ptr<AST::SimpleExpression>> >
-    multi_tuple
-    tuple_values
+%type< std::unique_ptr<AST::Definition> >
+    definition
 
 %type< std::unique_ptr<AST::Literal> >
     literal
@@ -174,18 +176,23 @@ line
         $$ = $1;
     }
     | "identifier" ":=" error ";" {
+        failed = true;
         $$ = NODE(ValueDefinition, $1, @1, NODE(Error, @3), @$);
     }
     | "identifier" ":=" expression error ";" {
+        failed = true;
         $$ = NODE(ValueDefinition, $1, @1, $3, @$);
     }
     | "identifier" ":" type error ";" {
+        failed = true;
         $$ = NODE(TypeDefinition, $1, @1, $3, @$);
     }
     | "identifier" ":" error ";" {
+        failed = true;
         $$ = NODE(TypeDefinition, $1, @1, NODE(Error, @3), @$);
     }
     | error ";" {
+        failed = true;
         $$ = NODE(Error, @1);
     }
 
@@ -207,15 +214,15 @@ definition
 
 func_expression
     : call_expression
-    | arg_type "=>" func_expression {
+    | arg_type "=>" expression {
         std::vector<AST::Function::arg_t> args;
         args.emplace_back($1);
         $$ = NODE(Function, std::move(args), @1, $3, @$);
     }
-    | opt_arg_types "=>" func_expression {
+    | opt_arg_types "=>" expression {
         $$ = NODE(Function, $1, @1, $3, @$);
     }
-    | opt_arg_types "->" type "=>" func_expression {
+    | opt_arg_types "->" type "=>" expression {
         auto loc = yy::location{@1.begin, @3.end};
         $$ = NODE(Function, $1, $3, loc, $5, @$);
     }
@@ -223,7 +230,7 @@ func_expression
 call_expression
     : tuple_expression
     | call_expression simple_expression {
-        auto values = std::vector<std::unique_ptr<AST::SimpleExpression>>();
+        auto values = std::vector<std::unique_ptr<AST::Expression>>();
         values.emplace_back($2);
         $$ = NODE(Call, $1, std::move(values), @2, @$);
     }
@@ -236,6 +243,9 @@ tuple_expression
     | multi_tuple {
         $$ = NODE(Tuple, $1, @$);
     }
+    | multi_array {
+        $$ = NODE(Array, $1, @$);
+    }
 
 simple_expression
     : literal {
@@ -247,7 +257,10 @@ simple_expression
     | block {
         $$ = $1;
     }
-    | "(" func_expression opt_comma ")" {
+    | simple_expression "[" expression "]" {
+        $$ = NODE(Index, $1, $3, @$);
+    }
+    | "(" expression opt_comma ")" {
         // optional comma to emulate a 1-tuple,
         // but its value should still just be the contained value
         $$ = $2;
@@ -259,14 +272,44 @@ multi_tuple
     }
     | unit {}
 
+multi_array
+    : "[" opt_expressions "]" {
+        $$ = $2;
+    }
+
+opt_expressions
+    : %empty {}
+    | expressions
+
+expressions
+    : expression {
+        $$.emplace_back($1);
+    }
+    | expressions "," expression {
+        $$ = $1;
+        $$.emplace_back($3);
+    }
+    | error {}
+    | expressions "," error {
+        $$ = $1;
+    }
+
 tuple_values
-    : func_expression "," func_expression {
+    : expression "," expression {
         $$.push_back($1);
         $$.push_back($3);
     }
-    | tuple_values "," func_expression {
+    | tuple_values "," expression {
         $$ = $1;
         $$.push_back($3);
+    }
+    | tuple_values "," error {
+        failed = true;
+        $$ = $1;
+    }
+    | expression "," error {
+        failed = true;
+        $$.push_back($1);
     }
 
 unit
@@ -312,8 +355,11 @@ arg_types
         $$ = $1;
         $$.push_back($3);
     }
-    | error {}
+    | error {
+        failed = true;
+    }
     | arg_types "," error {
+        failed = true;
         $$ = $1;
     }
 
@@ -347,6 +393,9 @@ simple_type
     : "type name" {
         $$ = NODE(ObjectType, $1, @1, @$);
     }
+    | tuple_type "[" "]" {
+        $$ = NODE(ArrayType, $1, @$);
+    }
     | "(" type opt_comma ")" {
         // optional comma to emulate a 1-tuple,
         // but its type should still just be the contained type
@@ -367,6 +416,14 @@ types
     | types "," type {
         $$ = $1;
         $$.push_back($3);
+    }
+    | types "," error {
+        failed = true;
+        $$ = $1;
+    }
+    | type "," error {
+        failed = true;
+        $$.push_back($1);
     }
 
 opt_comma
@@ -407,6 +464,18 @@ symbol_kind_name(const yy::Parser::symbol_kind_type &kind) {
             return {
                 {"`", color::bold_gray},
                 {"}", color::bold_red},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_LBRACKET:
+            return {
+                {"`", color::bold_gray},
+                {"[", color::bold_red},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_RBRACKET:
+            return {
+                {"`", color::bold_gray},
+                {"]", color::bold_red},
                 {"`", color::bold_gray}
             };
         case Parser::symbol_kind::S_SEMICOLON:
@@ -474,6 +543,9 @@ symbol_kind_name(const yy::Parser::symbol_kind_type &kind) {
         case Parser::symbol_kind::S_simple_expression:
         case Parser::symbol_kind::S_multi_tuple:
         case Parser::symbol_kind::S_tuple_values:
+        case Parser::symbol_kind::S_multi_array:
+        case Parser::symbol_kind::S_opt_expressions:
+        case Parser::symbol_kind::S_expressions:
         case Parser::symbol_kind::S_block:
         case Parser::symbol_kind::S_literal:
         case Parser::symbol_kind::S_types:
@@ -558,6 +630,7 @@ Parser::report_syntax_error(yy::Parser::context const &ctx) const {
         message.with_message(m);
     }
     errors.push_back(message);
+    failed = true;
 }
 
 void

@@ -12,10 +12,13 @@
 #include "ast/function.hpp"
 #include "ast/call.hpp"
 #include "ast/tuple.hpp"
+#include "ast/array.hpp"
+#include "ast/index.hpp"
 #include "ast/u64.hpp"
 
 #include "ast/object_type.hpp"
 #include "ast/tuple_type.hpp"
+#include "ast/array_type.hpp"
 #include "ast/func_type.hpp"
 
 #include "ast/error.hpp"

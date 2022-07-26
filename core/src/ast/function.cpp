@@ -17,7 +17,7 @@ namespace AST {
 Function::Function(
     std::vector<arg_t>                   &&args,
     const yy::location                    &sig_loc,
-    std::unique_ptr<AST::SimpleExpression> body,
+    std::unique_ptr<AST::Expression> body,
     const yy::location                    &loc)
     : Node(loc)
     , args_{std::move(args)}
@@ -29,7 +29,7 @@ Function::Function(
     std::vector<arg_t>                   &&args,
     std::unique_ptr<AST::Type>             ret_type,
     const yy::location                    &args_loc,
-    std::unique_ptr<AST::SimpleExpression> body,
+    std::unique_ptr<AST::Expression> body,
     const yy::location                    &loc)
     : Node(loc)
     , args_{std::move(args)}

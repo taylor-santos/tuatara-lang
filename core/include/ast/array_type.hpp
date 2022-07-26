@@ -1,26 +1,29 @@
 //
-// Created by taylor-santos on 1/2/2022 at 21:58.
+// Created by taylor-santos on 7/25/2022 at 14:11.
 //
 
 #pragma once
 
-#include "ast/expression.hpp"
 #include "ast/type.hpp"
+
+#include <vector>
 
 namespace AST {
 
-class Error final
-    : public Expression
-    , public Type {
+class ArrayType final : public Type {
 public:
-    explicit Error(const yy::location &loc);
-    ~Error() override;
+    ArrayType(std::unique_ptr<Type> type, const yy::location &loc);
+
+    ~ArrayType() override;
 
     void
     to_json(std::ostream &os) const override;
 
     [[nodiscard]] const TypeChecker::Type &
     get_type(TypeChecker::Context &ctx) const override;
+
+private:
+    std::unique_ptr<Type> type_;
 };
 
 } // namespace AST

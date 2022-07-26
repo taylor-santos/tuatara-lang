@@ -13,7 +13,7 @@
 
 namespace AST {
 
-Tuple::Tuple(std::vector<std::unique_ptr<AST::SimpleExpression>> &&values, const yy::location &loc)
+Tuple::Tuple(std::vector<std::unique_ptr<AST::Expression>> &&values, const yy::location &loc)
     : Node(loc)
     , values_{std::move(values)} {
     if (values_.size() == 1) {

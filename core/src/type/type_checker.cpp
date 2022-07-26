@@ -6,6 +6,7 @@
 #include "type/class.hpp"
 #include "location.hh"
 #include "printer.hpp"
+#include "type/object.hpp"
 
 #include <ostream>
 #include <iomanip>
@@ -26,6 +27,8 @@ Context::Context(std::vector<print::Message> &errors)
     ADD_CLASS(U64);
     ADD_CLASS(Dummy);
 #undef ADD_CLASS
+    auto &dummy = add_type(std::make_unique<TypeChecker::Object>(builtins.Dummy, yy::location{}));
+    set_symbol("dummy", dummy, yy::location{});
 }
 
 Context::Context(const Context &other)

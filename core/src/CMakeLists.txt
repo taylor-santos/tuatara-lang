@@ -6,17 +6,19 @@ set(CORE_SOURCES
         ast/value_definition.cpp
         ast/type_definition.cpp
         ast/type_value_definition.cpp
-        ast/simple_expression.cpp
         ast/block.cpp
         ast/function.cpp
         ast/call.cpp
+        ast/index.cpp
         ast/tuple.cpp
+        ast/array.cpp
         ast/literal.cpp
         ast/u64.cpp
         ast/variable.cpp
         ast/type.cpp
         ast/object_type.cpp
         ast/tuple_type.cpp
+        ast/array_type.cpp
         ast/func_type.cpp
         ast/error.cpp
         type/type_checker.cpp
@@ -25,6 +27,7 @@ set(CORE_SOURCES
         type/class.cpp
         type/object.cpp
         type/tuple.cpp
+        type/array.cpp
         type/func.cpp
         type/wrapper.cpp
         driver.cpp
