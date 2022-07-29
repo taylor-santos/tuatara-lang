@@ -2,7 +2,7 @@
 // Created by taylor-santos on 7/15/2022 at 16:44.
 //
 
-#include "ast/function.hpp"
+#include "ast/func_def.hpp"
 #include "json.hpp"
 #include "type/type_checker.hpp"
 #include "type/func.hpp"
@@ -15,10 +15,10 @@
 namespace AST {
 
 Function::Function(
-    std::vector<arg_t>                   &&args,
-    const yy::location                    &sig_loc,
+    std::vector<arg_t>             &&args,
+    const yy::location              &sig_loc,
     std::unique_ptr<AST::Expression> body,
-    const yy::location                    &loc)
+    const yy::location              &loc)
     : Node(loc)
     , args_{std::move(args)}
     , sig_loc_{sig_loc}
@@ -26,11 +26,11 @@ Function::Function(
     , body_{std::move(body)} {}
 
 Function::Function(
-    std::vector<arg_t>                   &&args,
-    std::unique_ptr<AST::Type>             ret_type,
-    const yy::location                    &args_loc,
+    std::vector<arg_t>             &&args,
+    std::unique_ptr<AST::Type>       ret_type,
+    const yy::location              &args_loc,
     std::unique_ptr<AST::Expression> body,
-    const yy::location                    &loc)
+    const yy::location              &loc)
     : Node(loc)
     , args_{std::move(args)}
     , sig_loc_{args_loc}
@@ -52,9 +52,9 @@ Function::to_json(std::ostream &os) const {
         os << sep;
         sep = ",";
         os << "{"
-           << R"("name":")" << arg.first.name << R"(",)"
+           << R"("name":")" << std::get<0>(arg) << R"(",)"
            << R"("type":)";
-        arg.first.type->to_json(os);
+        std::get<2>(arg)->to_json(os);
         os << "}";
     }
     os << "]";
@@ -78,8 +78,7 @@ Function::get_type(TypeChecker::Context &ctx) const {
     auto arg_types  = std::vector<const TypeChecker::Type *>();
     auto failed     = false;
     for (auto &arg : args_) {
-        auto &[pattern, loc] = arg;
-        auto &name           = pattern.name;
+        auto &[name, loc, type] = arg;
 
         auto prev = used_names.find(name);
         if (prev != used_names.end()) {
@@ -102,7 +101,7 @@ Function::get_type(TypeChecker::Context &ctx) const {
             failed = true;
         }
 
-        auto &arg_type = pattern.type->get_type(new_ctx);
+        auto &arg_type = type->get_type(new_ctx);
         new_ctx.set_symbol(name, arg_type, loc);
         used_names[name] = &arg;
         arg_types.push_back(&arg_type);

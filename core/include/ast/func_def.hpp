@@ -15,11 +15,7 @@ namespace AST {
 
 class Function final : public Expression {
 public:
-    struct Pattern {
-        std::string                name;
-        std::unique_ptr<AST::Type> type;
-    };
-    using arg_t = std::pair<Pattern, yy::location>;
+    using arg_t = std::tuple<std::string, yy::location, std::unique_ptr<AST::Type>>;
     Function(
         std::vector<arg_t>             &&args,
         const yy::location              &sig_loc,

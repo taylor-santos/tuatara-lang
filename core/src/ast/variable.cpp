@@ -13,7 +13,7 @@
 
 namespace AST {
 
-Variable::Variable(std::string name, const yy::location &loc)
+Variable::Variable(std::string &&name, const yy::location &loc)
     : Node(loc)
     , name_{std::move(name)} {}
 

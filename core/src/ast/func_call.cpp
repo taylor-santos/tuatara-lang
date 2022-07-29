@@ -2,7 +2,7 @@
 // Created by taylor-santos on 7/6/2022 at 12:29.
 //
 
-#include "ast/call.hpp"
+#include "ast/func_call.hpp"
 #include "type/error.hpp"
 #include "json.hpp"
 #include "type/type_checker.hpp"

@@ -12,7 +12,7 @@ namespace AST {
 
 class Variable final : public Expression {
 public:
-    Variable(std::string name, const yy::location &loc);
+    Variable(std::string &&name, const yy::location &loc);
     ~Variable() override;
 
     void

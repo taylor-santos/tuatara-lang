@@ -7,19 +7,21 @@ set(CORE_SOURCES
         ast/type_definition.cpp
         ast/type_value_definition.cpp
         ast/block.cpp
-        ast/function.cpp
-        ast/call.cpp
-        ast/index.cpp
+        ast/func_def.cpp
+        ast/func_call.cpp
+        ast/func_type.cpp
+        ast/array_def.cpp
+        ast/array_index.cpp
+        ast/array_type.cpp
+        ast/op_def.cpp
+        ast/op_call.cpp
         ast/tuple.cpp
-        ast/array.cpp
         ast/literal.cpp
         ast/u64.cpp
         ast/variable.cpp
         ast/type.cpp
         ast/object_type.cpp
         ast/tuple_type.cpp
-        ast/array_type.cpp
-        ast/func_type.cpp
         ast/error.cpp
         type/type_checker.cpp
         type/type.cpp
