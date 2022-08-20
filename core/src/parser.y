@@ -95,7 +95,6 @@
     COMMA       ","
     ARROW       "->"
     BIG_ARROW   "=>"
-    KW_OPERATOR "keyword operator"
 
 %token< uint64_t >
     U64         "`U64` literal"
@@ -103,7 +102,6 @@
 %token< std::string >
     IDENT       "identifier"
     TYPENAME    "type name"
-    OPERATOR    "operator"
 
 %type< std::vector<std::unique_ptr<AST::Expression>> >
     opt_lines
@@ -118,7 +116,6 @@
     line
     expression
     func_expression
-    op_expression
     call_expression
     tuple_expression
     simple_expression
@@ -138,9 +135,6 @@
     tuple_type
     simple_type
 
-%type< std::optional<std::unique_ptr<AST::Type>> >
-    opt_ret_type
-
 %type< std::vector<std::unique_ptr<AST::Type>> >
     tuple_types
     types
@@ -150,11 +144,7 @@
     arg_types
 
 %type< std::tuple<std::string, yy::location, std::unique_ptr<AST::Type>> > //TODO source of truth for Function::arg_t
-    single_arg_type
     arg_type
-
-%type< uint64_t >
-    op_precedence
 
 %start file
 
@@ -221,32 +211,9 @@ definition
     | "identifier" ":" type "=" expression {
         $$ = NODE(TypeValueDefinition, $1, @1, $3, $5, @$);
     }
-    | "keyword operator" op_precedence single_arg_type "operator" opt_ret_type "=>" expression {
-        $$ = NODE(Operator, $2, $3, $4, @4, $5, $7, @$);
-    }
-    | "keyword operator" op_precedence "operator" single_arg_type opt_ret_type "=>" expression {
-        $$ = NODE(Operator, $2, $3, @3, $4, $5, $7, @$);
-    }
-    | "keyword operator" op_precedence single_arg_type "operator" single_arg_type opt_ret_type "=>" expression {
-        $$ = NODE(Operator, $2, $3, $4, @4, $5, $6, $8, @$);
-    }
-
-op_precedence:
-    "`U64` literal"
-
-single_arg_type
-    : "(" arg_type ")" {
-        $$ = $2;
-    }
-
-opt_ret_type
-    : %empty {}
-    | "->" type {
-        $$ = $2;
-    }
 
 func_expression
-    : op_expression
+    : call_expression
     | arg_type "=>" expression {
         std::vector<AST::Function::arg_t> args;
         args.emplace_back($1);
@@ -258,18 +225,6 @@ func_expression
     | opt_arg_types "->" type "=>" expression {
         auto loc = yy::location{@1.begin, @3.end};
         $$ = NODE(Function, $1, $3, loc, $5, @$);
-    }
-
-op_expression
-    : call_expression
-    | "operator" call_expression {
-        $$ = NODE(OperatorCall, $1, @1, $2, @$);
-    }
-    | call_expression "operator" call_expression {
-        $$ = NODE(OperatorCall, $1, $2, @2, $3, @$);
-    }
-    | call_expression "operator" {
-        $$ = NODE(OperatorCall, $1, $2, @2, @$);
     }
 
 call_expression
@@ -564,20 +519,12 @@ symbol_kind_name(const yy::Parser::symbol_kind_type &kind, print::color highligh
                 {"=>", highlight},
                 {"`", color::bold_gray}
             };
-        case Parser::symbol_kind::S_KW_OPERATOR:
-            return {
-                {"keyword `", color::bold_gray},
-                {"operator", highlight},
-                {"`", color::bold_gray}
-            };
         case Parser::symbol_kind::S_U64:
             return {{"int literal", highlight}};
         case Parser::symbol_kind::S_IDENT:
             return {{"identifier", highlight}};
         case Parser::symbol_kind::S_TYPENAME:
             return {{"type name", highlight}};
-        case Parser::symbol_kind::S_OPERATOR:
-            return {{"operator", highlight}};
         case Parser::symbol_kind::S_YYEMPTY:
         case Parser::symbol_kind::S_YYEOF:
         case Parser::symbol_kind::S_YYerror:
@@ -591,7 +538,6 @@ symbol_kind_name(const yy::Parser::symbol_kind_type &kind, print::color highligh
         case Parser::symbol_kind::S_definition:
         case Parser::symbol_kind::S_func_expression:
         case Parser::symbol_kind::S_call_expression:
-        case Parser::symbol_kind::S_op_expression:
         case Parser::symbol_kind::S_tuple_expression:
         case Parser::symbol_kind::S_simple_expression:
         case Parser::symbol_kind::S_multi_tuple:
@@ -608,13 +554,10 @@ symbol_kind_name(const yy::Parser::symbol_kind_type &kind, print::color highligh
         case Parser::symbol_kind::S_tuple_types:
         case Parser::symbol_kind::S_simple_type:
         case Parser::symbol_kind::S_opt_arg_types:
-        case Parser::symbol_kind::S_opt_ret_type:
         case Parser::symbol_kind::S_arg_types:
         case Parser::symbol_kind::S_arg_type:
-        case Parser::symbol_kind::S_single_arg_type:
         case Parser::symbol_kind::S_unit:
         case Parser::symbol_kind::S_opt_comma:
-        case Parser::symbol_kind::S_op_precedence:
             break;
     }
     return {{yy::Parser::symbol_name(kind), highlight}};
@@ -640,12 +583,6 @@ symbol_type_name(const yy::Parser::symbol_type &tok) {
         case Parser::symbol_kind::S_TYPENAME:
             return {
                 {"type name `", color::bold_gray},
-                {tok.value.as<std::string>(), color::bold_red},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_OPERATOR:
-            return {
-                {"operator `", color::bold_gray},
                 {tok.value.as<std::string>(), color::bold_red},
                 {"`", color::bold_gray}
             };

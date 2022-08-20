@@ -8,7 +8,10 @@
 #include <vector>
 #include <variant>
 #include <queue>
-#include <source_location>
+
+#ifdef __cpp_lib_source_location
+#    include <source_location>
+#endif
 
 #include "location.hh"
 
@@ -125,8 +128,13 @@ public:
     void
     print(const std::vector<std::string> &source_lines, std::ostream &out = std::cerr) const;
 
+#ifdef __cpp_lib_source_location
     static Builder
     error(yy::position pos, std::source_location loc = std::source_location::current());
+#else
+    static Builder
+    error(yy::position pos);
+#endif
 
 private:
     Message(yy::position pos);

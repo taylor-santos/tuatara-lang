@@ -6,6 +6,7 @@
 #include <fstream>
 #include <cstring>
 #include <numeric>
+#include <iomanip>
 
 #include "driver.hpp"
 #include "ast/expression.hpp"

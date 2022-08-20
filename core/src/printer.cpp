@@ -67,6 +67,7 @@ operator<<(std::ostream &os, const std::vector<T> &v) {
     return os;
 }
 
+#ifdef __cpp_lib_source_location
 Message::Builder
 Message::error(yy::position pos, std::source_location loc) {
     return Builder(pos)
@@ -79,6 +80,12 @@ Message::error(yy::position pos, std::source_location loc) {
         .with_message("]\n", color::gray)
         .with_message("error: ", color::bold_red);
 }
+#else
+Message::Builder
+Message::error(yy::position pos) {
+    return Builder(pos).with_message("error: ", color::bold_red);
+}
+#endif
 
 Message::Message(yy::position pos)
     : pos_{pos} {}
@@ -543,7 +550,7 @@ generate_multi_row_line(
 }
 
 struct overlap {
-    const detail *detail;
+    const detail *d;
     bool          needs_underline;
 };
 
@@ -561,10 +568,10 @@ generate_under_line(std::queue<overlap> &overlaps, const Context &ctx) {
         auto end       = detail->loc.end.column;
         auto underline = col < begin ? std::string(begin - col, ' ') : "";
         col            = begin;
-        if (i == n - 1 || end < overlaps.front().detail->loc.begin.column) {
+        if (i == n - 1 || end < overlaps.front().d->loc.begin.column) {
             auto width = end - begin;
             if (i < n - 1) {
-                auto gap         = overlaps.front().detail->loc.begin.column - end;
+                auto gap         = overlaps.front().d->loc.begin.column - end;
                 auto message_len = std::accumulate(
                     detail->message.begin(),
                     detail->message.end(),
@@ -597,7 +604,7 @@ generate_under_line(std::queue<overlap> &overlaps, const Context &ctx) {
                     col += 1 + (int)message_len;
                     continue; // TODO: refactor this
                 } else {
-                    overlaps.emplace(detail, false);
+                    overlaps.emplace(overlap{detail, false});
                 }
             } else {
                 if (needs_underline) {
@@ -617,7 +624,7 @@ generate_under_line(std::queue<overlap> &overlaps, const Context &ctx) {
                 continue; // TODO: refactor this
             }
         } else {
-            overlaps.emplace(detail, true);
+            overlaps.emplace(overlap{detail, true});
         }
         line.emplace_back(underline, detail->color);
     }
@@ -706,7 +713,7 @@ generate_output(
         if (!in_ds.empty()) {
             auto overlaps = std::queue<overlap>();
             for (auto *const d : in_ds) {
-                overlaps.emplace(d, true);
+                overlaps.emplace(overlap{d, true});
             }
             while (!overlaps.empty()) {
                 auto line = generate_under_line(overlaps, ctx);

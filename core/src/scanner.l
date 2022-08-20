@@ -70,8 +70,6 @@ ident          [_0-9a-zA-Z]
 [[:blank:]]+    { /* Ignore whitespace */ }
 [/]{2}.*        { /* Ignore comments */ }
 
-operator { return yy::Parser::make_KW_OPERATOR(loc_); }
-
 [[:digit:]]([_]*[[:digit:]]+)*  { return lex_int(yytext, loc_); }
 
 {ident_start}{ident}*       { return yy::Parser::make_IDENT(yytext, loc_); }
@@ -92,8 +90,6 @@ operator { return yy::Parser::make_KW_OPERATOR(loc_); }
 
 "->" { return yy::Parser::make_ARROW(loc_); }
 "=>" { return yy::Parser::make_BIG_ARROW(loc_); }
-
-[-~!@#$%^&*?+=<>/]+  { return yy::Parser::make_OPERATOR(yytext, loc_); }
 
 .       { throw_unrecognized_char(*yytext, loc_); }
 <<EOF>> { return yy::Parser::make_EOF(loc_); }

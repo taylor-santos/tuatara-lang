@@ -43,21 +43,10 @@ bar := t:(U64,U64) => 5;
 
 baz := f:(U64,U64)->U64 => ();
 
+baz foo; // foo takes 2 int arguments
+baz bar; // bar takes 1 (int,int) argument
+
+
 first := (x:U64[]) => x[0];
 
-operator 6 (lhs: U64) + (rhs: U64) -> U64 => 123;
-operator 6 (lhs: U64) - (rhs: U64) -> U64 => 123;
-operator 5 (lhs: U64) * (rhs: U64) -> U64 => 123;
-operator 5 (lhs: U64) / (rhs: U64) -> U64 => 123;
-
-
 a := (x:U64)=>[x];
-
-foo (1, 2);
-bar (3, 4);
-
-baz foo;
-baz bar;
-
-op := (x: U64) => x + 5;
-

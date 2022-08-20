@@ -13,8 +13,6 @@ set(CORE_SOURCES
         ast/array_def.cpp
         ast/array_index.cpp
         ast/array_type.cpp
-        ast/op_def.cpp
-        ast/op_call.cpp
         ast/tuple.cpp
         ast/literal.cpp
         ast/u64.cpp
