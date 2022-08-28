@@ -26,6 +26,8 @@
 #define LOC(FILE, BEGIN_LINE, BEGIN_COL, END_LINE, END_COL) \
     yy::location { POS((FILE), (BEGIN_LINE), (BEGIN_COL)), POS((FILE), (END_LINE), (END_COL)) }
 
+#pragma warning(disable : 4702) // unreachable code TODO remove after parser is finished
+
 int
 main(int argc, char **argv) try {
     rang::setControlMode(rang::control::Auto);
@@ -48,8 +50,18 @@ main(int argc, char **argv) try {
 
     times.push_back(std::chrono::high_resolution_clock::now());
 
-    auto path         = std::filesystem::relative(argv[1]).string();
+    auto path = std::filesystem::relative(argv[1]).string();
+
+    // -----------------
+    // Parse Source File
+    // -----------------
     auto parse_status = driver.parse(&path);
+
+    for (auto &message : driver.errors()) {
+        message.print(driver.lines(), std::cout);
+    }
+
+    return parse_status;
 
     times.push_back(std::chrono::high_resolution_clock::now());
 
@@ -64,7 +76,11 @@ main(int argc, char **argv) try {
     std::cout << "]\n";
      */
 
-    auto ctx              = driver.type_check();
+    // --------------
+    // Type Check AST
+    // --------------
+    auto ctx = driver.type_check();
+
     auto typecheck_status = ctx.did_fail();
 
     times.push_back(std::chrono::high_resolution_clock::now());
@@ -120,6 +136,8 @@ main(int argc, char **argv) try {
     }
 
     ctx.print_symbols(std::cout);
+
+    if (parse_status || typecheck_status) return EXIT_FAILURE;
 
     return parse_status || typecheck_status;
 } catch (std::exception &e) {

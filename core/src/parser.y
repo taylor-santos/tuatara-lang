@@ -91,10 +91,32 @@
     SEMICOLON   ";"
     TYPE_DECL   ":"
     DEFINE      ":="
+    CONSTDEF    "::"
     ASSIGN      "="
     COMMA       ","
+    DOT         "."
+    TICK        "`"
     ARROW       "->"
-    BIG_ARROW   "=>"
+    BIGARROW    "=>"
+    DOLLAR      "$"
+    MUL         "*"
+    DIV         "/"
+    MOD         "%"
+    PLUS        "+"
+    MINUS       "-"
+    LSHIFT      "<<"
+    RSHIFT      ">>"
+    LT          "<"
+    LE          "<="
+    GT          ">"
+    GE          ">="
+    EQ          "=="
+    NE          "!="
+    BITAND      "&"
+    BITXOR      "^"
+    BITOR       "|"
+    AND         "&&"
+    OR          "||"
 
 %token< uint64_t >
     U64         "`U64` literal"
@@ -102,332 +124,214 @@
 %token< std::string >
     IDENT       "identifier"
     TYPENAME    "type name"
+    OPERATOR    "operator"
 
-%type< std::vector<std::unique_ptr<AST::Expression>> >
+%type< std::stringstream >
     opt_lines
     lines
-    multi_tuple
-    tuple_values
-    multi_array
-    opt_expressions
-    expressions
-
-%type< std::unique_ptr<AST::Expression> >
     line
+    expressions
+    opt_expression
     expression
-    func_expression
-    call_expression
-    tuple_expression
-    simple_expression
-
-%type< std::unique_ptr<AST::Definition> >
-    definition
-
-%type< std::unique_ptr<AST::Literal> >
-    literal
-
-%type< std::unique_ptr<AST::Block> >
+    op_expr
+    operand
+    block_expr
+    apply_expr
+    simple_expr
+    no_paren_simple_expr
+    paren_simple_expr
     block
-
-%type< std::unique_ptr<AST::Type> >
-    type
-    func_type
-    tuple_type
-    simple_type
-
-%type< std::vector<std::unique_ptr<AST::Type>> >
-    tuple_types
+    tuple
+    array
+    no_id_expr
+    func_expr
+    func_sig
+    no_id_args
+    no_id_exprs
+    idents
+    no_id_arg
+    arg
     types
+    type
+    ident
 
-%type< std::vector<std::tuple<std::string, yy::location, std::unique_ptr<AST::Type>>> >
-    opt_arg_types
-    arg_types
+%left "||"
+%left "&&"
+%left "|"
+%left "^"
+%left "&"
+%left "==" "!="
+%left "<" "<=" ">" ">="
+%left "<<" ">>"
+%left "+" "-"
+%left "*" "/" "%"
+%left "operator" "`"
 
-%type< std::tuple<std::string, yy::location, std::unique_ptr<AST::Type>> > //TODO source of truth for Function::arg_t
-    arg_type
+%precedence "["
+%right "->"
 
 %start file
 
 %%
 
 file
-    : opt_lines {
-        ast_out = $1;
-    }
+    : opt_lines                                                 { std::cout << $1.str(); }
 
 opt_lines
     : %empty {}
     | lines
 
 lines
-    : line {
-        $$.emplace_back($1);
-    }
-    | lines line {
-        $$ = $1;
-        $$.emplace_back($2);
-    }
+    : line
+    | lines line                                                { $$ = $1 << $2.str(); }
 
 line
-    : expression ";" {
-        $$ = $1;
-    }
-    | definition ";" {
-        $$ = $1;
-    }
-    | "identifier" ":=" error ";" {
-        failed = true;
-        $$ = NODE(ValueDefinition, $1, @1, NODE(Error, @3), @$);
-    }
-    | "identifier" ":=" expression error ";" {
-        failed = true;
-        $$ = NODE(ValueDefinition, $1, @1, $3, @$);
-    }
-    | "identifier" ":" type error ";" {
-        failed = true;
-        $$ = NODE(TypeDefinition, $1, @1, $3, @$);
-    }
-    | "identifier" ":" error ";" {
-        failed = true;
-        $$ = NODE(TypeDefinition, $1, @1, NODE(Error, @3), @$);
-    }
-    | error ";" {
-        failed = true;
-        $$ = NODE(Error, @1);
-    }
-
-expression
-    : func_expression {
-        $$ = $1;
-    }
-
-definition
-    : "identifier" ":=" expression {
-        $$ = NODE(ValueDefinition, $1, @1, $3, @$);
-    }
-    | "identifier" ":" type {
-        $$ = NODE(TypeDefinition, $1, @1, $3, @$);
-    }
-    | "identifier" ":" type "=" expression {
-        $$ = NODE(TypeValueDefinition, $1, @1, $3, $5, @$);
-    }
-
-func_expression
-    : call_expression
-    | arg_type "=>" expression {
-        std::vector<AST::Function::arg_t> args;
-        args.emplace_back($1);
-        $$ = NODE(Function, std::move(args), @1, $3, @$);
-    }
-    | opt_arg_types "=>" expression {
-        $$ = NODE(Function, $1, @1, $3, @$);
-    }
-    | opt_arg_types "->" type "=>" expression {
-        auto loc = yy::location{@1.begin, @3.end};
-        $$ = NODE(Function, $1, $3, loc, $5, @$);
-    }
-
-call_expression
-    : tuple_expression
-    | call_expression simple_expression {
-        auto values = std::vector<std::unique_ptr<AST::Expression>>();
-        values.emplace_back($2);
-        $$ = NODE(Call, $1, std::move(values), @2, @$);
-    }
-    | call_expression multi_tuple {
-        $$ = NODE(Call, $1, $2, @2, @$);
-    }
-
-tuple_expression
-    : simple_expression
-    | multi_tuple {
-        $$ = NODE(Tuple, $1, @$);
-    }
-    | multi_array {
-        $$ = NODE(Array, $1, @$);
-    }
-
-simple_expression
-    : literal {
-        $$ = $1;
-    }
-    | "identifier" {
-        $$ = NODE(Variable, $1, @$);
-    }
-    | block {
-        $$ = $1;
-    }
-    | simple_expression "[" expression "]" {
-        $$ = NODE(Index, $1, $3, @$);
-    }
-    | "(" expression opt_comma ")" {
-        // optional comma to emulate a 1-tuple,
-        // but its value should still just be the contained value
-        $$ = $2;
-    }
-
-multi_tuple
-    : "(" tuple_values opt_comma ")" {
-        $$ = $2;
-    }
-    | unit {}
-
-multi_array
-    : "[" opt_expressions "]" {
-        $$ = $2;
-    }
-
-opt_expressions
-    : %empty {}
-    | expressions
+    : expression ";"                                            { $$ = $1 << ";\n"; }
+    | error ";"                                                 { $$ << "<ERROR>;\n"; yyerrok; }
 
 expressions
-    : expression {
-        $$.emplace_back($1);
-    }
-    | expressions "," expression {
-        $$ = $1;
-        $$.emplace_back($3);
-    }
-    | error {}
-    | expressions "," error {
-        $$ = $1;
-    }
+    : expression
+    | error                                                     { $$ << "<ERROR>"; yyerrok; }
+    | expressions "," expression                                { $$ = $1 << ", " << $3.str(); }
+    | expressions "," error                                     { $$ = $1 << ", " << "<ERROR>"; yyerrok; }
 
-tuple_values
-    : expression "," expression {
-        $$.push_back($1);
-        $$.push_back($3);
-    }
-    | tuple_values "," expression {
-        $$ = $1;
-        $$.push_back($3);
-    }
-    | tuple_values "," error {
-        failed = true;
-        $$ = $1;
-    }
-    | expression "," error {
-        failed = true;
-        $$.push_back($1);
-    }
+opt_expression
+    : %empty {}
+    | expression
 
-unit
-    : "(" ")"
+expression
+    : no_id_expr
+    | ident
+
+no_id_expr
+    : block_expr
+    | apply_expr
+    | func_expr
+    | ident ":=" expression                                     { $$ = $1 << " := (" << $3.str() << ")"; }
+    | ident "::" expression                                     { $$ = $1 << " :: (" << $3.str() << ")"; }
+    | ident ":" type "=" expression                             { $$ = $1 << ": (" << $3.str() << ") = (" << $5.str() << ")"; }
+
+block_expr
+    : op_expr
+    | block
+
+func_expr
+    : func_sig expression                                       { $$ = $1 << "(" << $2.str() << ")"; }
+
+func_sig
+    : "(" no_id_args opt_comma ")" "=>"                         { $$ << "(" << $2.str() << ") => "; }
+    | "(" idents    opt_comma ")" "=>"                          { $$ << "(" << $2.str() << ") => "; }
+    | unit                        "=>"                          { $$ << "(" <<             ") => "; }
+    | ident                       "=>"                          { $$ << "(" << $1.str() << ") => "; }
+
+op_expr
+    : operand "*"  operand                                      { $$ << "(" << $1.str() << ") * ("  << $3.str() << ")"; }
+    | operand "/"  operand                                      { $$ << "(" << $1.str() << ") / ("  << $3.str() << ")"; }
+    | operand "%"  operand                                      { $$ << "(" << $1.str() << ") % ("  << $3.str() << ")"; }
+    | operand "+"  operand                                      { $$ << "(" << $1.str() << ") + ("  << $3.str() << ")"; }
+    | operand "-"  operand                                      { $$ << "(" << $1.str() << ") - ("  << $3.str() << ")"; }
+    | operand "<<" operand                                      { $$ << "(" << $1.str() << ") << (" << $3.str() << ")"; }
+    | operand ">>" operand                                      { $$ << "(" << $1.str() << ") >> (" << $3.str() << ")"; }
+    | operand "<"  operand                                      { $$ << "(" << $1.str() << ") < ("  << $3.str() << ")"; }
+    | operand "<=" operand                                      { $$ << "(" << $1.str() << ") <= (" << $3.str() << ")"; }
+    | operand ">"  operand                                      { $$ << "(" << $1.str() << ") > ("  << $3.str() << ")"; }
+    | operand ">=" operand                                      { $$ << "(" << $1.str() << ") >= (" << $3.str() << ")"; }
+    | operand "==" operand                                      { $$ << "(" << $1.str() << ") == (" << $3.str() << ")"; }
+    | operand "!=" operand                                      { $$ << "(" << $1.str() << ") != (" << $3.str() << ")"; }
+    | operand "&"  operand                                      { $$ << "(" << $1.str() << ") & ("  << $3.str() << ")"; }
+    | operand "^"  operand                                      { $$ << "(" << $1.str() << ") ^ ("  << $3.str() << ")"; }
+    | operand "|"  operand                                      { $$ << "(" << $1.str() << ") | ("  << $3.str() << ")"; }
+    | operand "&&" operand                                      { $$ << "(" << $1.str() << ") && (" << $3.str() << ")"; }
+    | operand "||" operand                                      { $$ << "(" << $1.str() << ") || (" << $3.str() << ")"; }
+    | operand "operator"    operand                             { $$ << "(" << $1.str() << ") "  << $2       << " ("  << $3.str() << ")"; }
+    | operand "`" ident "`" operand                             { $$ << "(" << $1.str() << ") `" << $3.str() << "` (" << $5.str() << ")"; }
+
+operand
+    : op_expr
+    | simple_expr
+    | ident
+
+apply_expr
+    : simple_expr
+    | ident      no_paren_simple_expr                           { $$ << "(" << $1.str() << ")(" << $2.str() << ")"; }
+    | ident      ident                                          { $$ << "(" << $1.str() << ")(" << $2.str() << ")"; }
+    | apply_expr no_paren_simple_expr                           { $$ << "(" << $1.str() << ")(" << $2.str() << ")"; }
+    | apply_expr ident                                          { $$ << "(" << $1.str() << ")(" << $2.str() << ")"; }
+
+simple_expr
+    : no_paren_simple_expr
+    | paren_simple_expr
+
+no_paren_simple_expr
+    : no_paren_simple_expr "." ident                            { $$ << "(" << $1.str() << ")." << $3.str(); }
+    | ident                "." ident                            { $$ << "(" << $1.str() << ")." << $3.str(); }
+    | no_paren_simple_expr tuple                                { $$ << "(" << $1.str() << ")" << $2.str(); }
+    | ident                tuple                                { $$ << "(" << $1.str() << ")" << $2.str(); }
+    | no_paren_simple_expr array                                { $$ << "(" << $1.str() << ")" << $2.str(); }
+    | ident                array                                { $$ << "(" << $1.str() << ")" << $2.str(); }
+    | U64                                                       { $$ << $1; }
+
+paren_simple_expr
+    : tuple
+    | array
+    | paren_simple_expr "." ident                               { $$ = $1 << "." << $3.str(); }
+    | paren_simple_expr tuple                                   { $$ = $1 << $2.str(); }
+    | paren_simple_expr array                                   { $$ = $1 << $2.str(); }
+
+array
+    : "[" expressions "]"                                       { $$ << "[" << $2.str() << ",]"; }
+
+tuple
+    : "(" no_id_exprs opt_comma ")"                             { $$ << "(" << $2.str() << ",)"; }
+    | "(" idents     opt_comma ")"                              { $$ << "(" << $2.str() << ",)"; }
+    | unit                                                      { $$ << "()"; }
+
+no_id_exprs
+    : no_id_expr
+    | idents     "," no_id_expr                                 { $$ = $1 << ", " << $3.str(); }
+    | no_id_exprs "," expression                                { $$ = $1 << ", " << $3.str(); }
 
 block
-    : "{" "}" {
-        $$ = NODE(Block, @$, @$);
-    }
-    | "{" expression "}" {
-        $$ = NODE(Block, $2, @$);
-    }
-    | "{" expression ";" "}" {
-        std::vector<std::unique_ptr<AST::Expression>> lines;
-        lines.push_back($2);
-        $$ = NODE(Block, std::move(lines), @3, @$);
-    }
-    | "{" lines expression "}" {
-        $$ = NODE(Block, $2, $3, @$);
-    }
-    | "{" lines expression ";" "}" {
-        auto lines = $2;
-        lines.push_back($3);
-        $$ = NODE(Block, std::move(lines), @4, @$);
-    }
+    : "{" opt_expression "}"                                    { $$ << "{" << $2.str() << "}"; }
+    | "{" lines opt_expression "}"                              { $$ << "{" << $2.str() << $3.str() << "}"; }
 
-literal
-    : "`U64` literal" {
-        $$ = NODE(U64, $1, @$);
-    }
+arg
+    : no_id_arg
+    | ident
 
-opt_arg_types
-    : unit {}
-    | "(" arg_types ")" {
-        $$ = $2;
-    }
+no_id_arg
+    : ident ":" type                                            { $$ = $1 << ": " << $3.str(); }
 
-arg_types
-    : arg_type {
-        $$.push_back($1);
-    }
-    | arg_types "," arg_type {
-        $$ = $1;
-        $$.push_back($3);
-    }
-    | error {
-        failed = true;
-    }
-    | arg_types "," error {
-        failed = true;
-        $$ = $1;
-    }
-
-arg_type
-    : "identifier" ":" type {
-        $$ = std::make_tuple($1, @1, $3);
-    }
-
-type
-    : tuple_type
-    | func_type
-
-tuple_type
-    : simple_type
-    | tuple_types {
-        $$ = NODE(TupleType, $1, @$);
-    }
-
-func_type
-    : simple_type "->" type {
-        auto types = std::vector<std::unique_ptr<AST::Type>>();
-        types.push_back($1);
-        $$ = NODE(FuncType, std::move(types), $3, @$);
-    }
-    | tuple_types "->" type {
-        $$ = NODE(FuncType, $1, $3, @$);
-    }
-
-simple_type
-    : "type name" {
-        $$ = NODE(ObjectType, $1, @1, @$);
-    }
-    | tuple_type "[" "]" {
-        $$ = NODE(ArrayType, $1, @$);
-    }
-    | "(" type opt_comma ")" {
-        // optional comma to emulate a 1-tuple,
-        // but its type should still just be the contained type
-        $$ = $2;
-    }
-
-tuple_types
-    : unit {}
-    | "(" types opt_comma ")" {
-        $$ = $2;
-    }
+no_id_args
+    : no_id_arg
+    | idents    "," no_id_arg                                   { $$ = $1 << ", " << $3.str(); }
+    | no_id_args "," arg                                        { $$ = $1 << ", " << $3.str(); }
 
 types
-    : type "," type {
-        $$.push_back($1);
-        $$.push_back($3);
-    }
-    | types "," type {
-        $$ = $1;
-        $$.push_back($3);
-    }
-    | types "," error {
-        failed = true;
-        $$ = $1;
-    }
-    | type "," error {
-        failed = true;
-        $$.push_back($1);
-    }
+    : type
+    | types "," type                                            { $$ = $1 << ", " << $3.str(); }
+
+type
+    : "type name"                                               { $$ << $1; }
+    | "$" "type name"                                           { $$ << "$" << $2; }
+    | type "->" type                                            { $$ << "(" << $1.str() << ")->(" << $3.str() << ")"; }
+    | type "[" "]"                                              { $$ << "(" << $1.str() << ")[]"; }
+    | "(" types opt_comma ")"                                   { $$ << "(" << $2.str() << ",)"; }
+    | unit                                                      { $$ << "()"; }
+
+idents
+    : ident
+    | idents "," ident                                          { $$ = $1 << ", " << $3.str(); }
+
+ident
+    : "identifier"                                              { $$ << $1; }
 
 opt_comma
     : %empty
     | ","
+
+unit
+    : "(" ")"
 
 %%
 
@@ -495,6 +399,12 @@ symbol_kind_name(const yy::Parser::symbol_kind_type &kind, print::color highligh
                 {":=", highlight},
                 {"`", color::bold_gray}
             };
+        case Parser::symbol_kind::S_CONSTDEF:
+            return {
+                {"`", color::bold_gray},
+                {"::", highlight},
+                {"`", color::bold_gray}
+            };
         case Parser::symbol_kind::S_ASSIGN:
             return {
                 {"`", color::bold_gray},
@@ -507,57 +417,141 @@ symbol_kind_name(const yy::Parser::symbol_kind_type &kind, print::color highligh
                 {",", highlight},
                 {"`", color::bold_gray}
             };
+        case Parser::symbol_kind::S_DOT:
+            return {
+                {"`", color::bold_gray},
+                {".", highlight},
+                {"`", color::bold_gray}
+            };
         case Parser::symbol_kind::S_ARROW:
             return {
                 {"`", color::bold_gray},
                 {"->", highlight},
                 {"`", color::bold_gray}
             };
-        case Parser::symbol_kind::S_BIG_ARROW:
+        case Parser::symbol_kind::S_BIGARROW:
             return {
                 {"`", color::bold_gray},
                 {"=>", highlight},
                 {"`", color::bold_gray}
             };
+        case Parser::symbol_kind::S_MUL:
+            return {
+                {"`", color::bold_gray},
+                {"*", highlight},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_DIV:
+            return {
+                {"`", color::bold_gray},
+                {"/", highlight},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_MOD:
+            return {
+                {"`", color::bold_gray},
+                {"%", highlight},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_PLUS:
+            return {
+                {"`", color::bold_gray},
+                {"+", highlight},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_MINUS:
+            return {
+                {"`", color::bold_gray},
+                {"-", highlight},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_LSHIFT:
+            return {
+                {"`", color::bold_gray},
+                {"<<", highlight},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_RSHIFT:
+            return {
+                {"`", color::bold_gray},
+                {">>", highlight},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_LT:
+            return {
+                {"`", color::bold_gray},
+                {"<", highlight},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_LE:
+            return {
+                {"`", color::bold_gray},
+                {"<=", highlight},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_GT:
+            return {
+                {"`", color::bold_gray},
+                {">", highlight},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_GE:
+            return {
+                {"`", color::bold_gray},
+                {">=", highlight},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_EQ:
+            return {
+                {"`", color::bold_gray},
+                {"==", highlight},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_NE:
+            return {
+                {"`", color::bold_gray},
+                {"!=", highlight},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_BITAND:
+            return {
+                {"`", color::bold_gray},
+                {"&", highlight},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_BITXOR:
+            return {
+                {"`", color::bold_gray},
+                {"^", highlight},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_BITOR:
+            return {
+                {"`", color::bold_gray},
+                {"|", highlight},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_AND:
+            return {
+                {"`", color::bold_gray},
+                {"&&", highlight},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_OR:
+            return {
+                {"`", color::bold_gray},
+                {"||", highlight},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_OPERATOR:
+            return {{"operator", highlight}};
         case Parser::symbol_kind::S_U64:
             return {{"int literal", highlight}};
         case Parser::symbol_kind::S_IDENT:
             return {{"identifier", highlight}};
         case Parser::symbol_kind::S_TYPENAME:
             return {{"type name", highlight}};
-        case Parser::symbol_kind::S_YYEMPTY:
-        case Parser::symbol_kind::S_YYEOF:
-        case Parser::symbol_kind::S_YYerror:
-        case Parser::symbol_kind::S_YYUNDEF:
-        case Parser::symbol_kind::S_YYACCEPT:
-        case Parser::symbol_kind::S_file:
-        case Parser::symbol_kind::S_opt_lines:
-        case Parser::symbol_kind::S_lines:
-        case Parser::symbol_kind::S_line:
-        case Parser::symbol_kind::S_expression:
-        case Parser::symbol_kind::S_definition:
-        case Parser::symbol_kind::S_func_expression:
-        case Parser::symbol_kind::S_call_expression:
-        case Parser::symbol_kind::S_tuple_expression:
-        case Parser::symbol_kind::S_simple_expression:
-        case Parser::symbol_kind::S_multi_tuple:
-        case Parser::symbol_kind::S_tuple_values:
-        case Parser::symbol_kind::S_multi_array:
-        case Parser::symbol_kind::S_opt_expressions:
-        case Parser::symbol_kind::S_expressions:
-        case Parser::symbol_kind::S_block:
-        case Parser::symbol_kind::S_literal:
-        case Parser::symbol_kind::S_types:
-        case Parser::symbol_kind::S_type:
-        case Parser::symbol_kind::S_func_type:
-        case Parser::symbol_kind::S_tuple_type:
-        case Parser::symbol_kind::S_tuple_types:
-        case Parser::symbol_kind::S_simple_type:
-        case Parser::symbol_kind::S_opt_arg_types:
-        case Parser::symbol_kind::S_arg_types:
-        case Parser::symbol_kind::S_arg_type:
-        case Parser::symbol_kind::S_unit:
-        case Parser::symbol_kind::S_opt_comma:
+        default:
             break;
     }
     return {{yy::Parser::symbol_name(kind), highlight}};
@@ -583,6 +577,12 @@ symbol_type_name(const yy::Parser::symbol_type &tok) {
         case Parser::symbol_kind::S_TYPENAME:
             return {
                 {"type name `", color::bold_gray},
+                {tok.value.as<std::string>(), color::bold_red},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_OPERATOR:
+            return {
+                {"operator `", color::bold_gray},
                 {tok.value.as<std::string>(), color::bold_red},
                 {"`", color::bold_gray}
             };

@@ -30,7 +30,9 @@ invert(Relation rel);
 class Type {
 public:
     explicit Type(std::optional<yy::location> loc);
+
     Type(const Type &) = delete;
+
     virtual ~Type();
 
     [[nodiscard]] std::optional<yy::location>

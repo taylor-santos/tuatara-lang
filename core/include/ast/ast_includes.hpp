@@ -15,6 +15,8 @@
 #include "ast/array.hpp"
 #include "ast/index.hpp"
 #include "ast/u64.hpp"
+#include "ast/struct.hpp"
+#include "ast/pattern.hpp"
 
 #include "ast/object_type.hpp"
 #include "ast/tuple_type.hpp"

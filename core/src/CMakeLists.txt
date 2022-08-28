@@ -16,10 +16,12 @@ set(CORE_SOURCES
         ast/tuple.cpp
         ast/literal.cpp
         ast/u64.cpp
+        ast/struct.cpp
         ast/variable.cpp
         ast/type.cpp
         ast/object_type.cpp
         ast/tuple_type.cpp
+        ast/pattern.cpp
         ast/error.cpp
         type/type_checker.cpp
         type/type.cpp
@@ -33,7 +35,8 @@ set(CORE_SOURCES
         driver.cpp
         json.cpp
         line_stream.cpp
-        printer.cpp)
+        printer.cpp
+        )
 
 set(CMAKE_FIND_USE_PACKAGE_ROOT_PATH ON)
 find_package(FLEX 2.6.4
@@ -43,14 +46,12 @@ find_package(BISON 3.7.4
 
 flex_target(SCANNER
         ${CMAKE_CURRENT_SOURCE_DIR}/scanner.l
-        ${CMAKE_CURRENT_BINARY_DIR}/scanner.cpp
-        )
+        ${CMAKE_CURRENT_BINARY_DIR}/scanner.cpp)
 bison_target(PARSER
         ${CMAKE_CURRENT_SOURCE_DIR}/parser.y
         ${CMAKE_CURRENT_BINARY_DIR}/parser.cpp
-        COMPILE_FLAGS "-Wcounterexamples"
-        VERBOSE
-        )
+        COMPILE_FLAGS "--report=counterexamples -Wcex -Wall"
+        VERBOSE)
 add_flex_bison_dependency(SCANNER PARSER)
 
 add_library(core

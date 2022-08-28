@@ -66,33 +66,59 @@ ident          [_0-9a-zA-Z]
     // This block is executed every time yylex() is called.
 %}
 
-[\r]?[\n]?      { loc_.lines(1); }
-[[:blank:]]+    { /* Ignore whitespace */ }
-[/]{2}.*        { /* Ignore comments */ }
+[\r]?[\n]?                          { loc_.lines(1); }
+[[:blank:]]+                        { /* Ignore whitespace */ }
+[/]{2}.*                            { /* Ignore comments */ }
 
-[[:digit:]]([_]*[[:digit:]]+)*  { return lex_int(yytext, loc_); }
+[[:digit:]]([_]*[[:digit:]]+)*      { return lex_int(yytext, loc_); }
 
-{ident_start}{ident}*       { return yy::Parser::make_IDENT(yytext, loc_); }
-{typename_start}{ident}*    { return yy::Parser::make_TYPENAME(yytext, loc_); }
+{ident_start}{ident}*               { return yy::Parser::make_IDENT(yytext, loc_); }
+{typename_start}{ident}*            { return yy::Parser::make_TYPENAME(yytext, loc_); }
 
-;   { return yy::Parser::make_SEMICOLON(loc_); }
-:   { return yy::Parser::make_TYPE_DECL(loc_); }
-:=  { return yy::Parser::make_DEFINE(loc_); }
-=   { return yy::Parser::make_ASSIGN(loc_); }
-,   { return yy::Parser::make_COMMA(loc_); }
+";"                                 { return yy::Parser::make_SEMICOLON(loc_); }
+":"                                 { return yy::Parser::make_TYPE_DECL(loc_); }
+":="                                { return yy::Parser::make_DEFINE(loc_); }
+"::"                                { return yy::Parser::make_CONSTDEF(loc_); }
+"="                                 { return yy::Parser::make_ASSIGN(loc_); }
+","                                 { return yy::Parser::make_COMMA(loc_); }
+"."                                 { return yy::Parser::make_DOT(loc_); }
+"`"                                 { return yy::Parser::make_TICK(loc_); }
 
-"(" { return yy::Parser::make_LPAREN(loc_); }
-")" { return yy::Parser::make_RPAREN(loc_); }
-"{" { return yy::Parser::make_LBRACE(loc_); }
-"}" { return yy::Parser::make_RBRACE(loc_); }
-"[" { return yy::Parser::make_LBRACKET(loc_); }
-"]" { return yy::Parser::make_RBRACKET(loc_); }
+"("                                 { return yy::Parser::make_LPAREN(loc_); }
+")"                                 { return yy::Parser::make_RPAREN(loc_); }
+"{"                                 { return yy::Parser::make_LBRACE(loc_); }
+"}"                                 { return yy::Parser::make_RBRACE(loc_); }
+"["                                 { return yy::Parser::make_LBRACKET(loc_); }
+"]"                                 { return yy::Parser::make_RBRACKET(loc_); }
 
-"->" { return yy::Parser::make_ARROW(loc_); }
-"=>" { return yy::Parser::make_BIG_ARROW(loc_); }
+"->"                                { return yy::Parser::make_ARROW(loc_); }
+"=>"                                { return yy::Parser::make_BIGARROW(loc_); }
 
-.       { throw_unrecognized_char(*yytext, loc_); }
-<<EOF>> { return yy::Parser::make_EOF(loc_); }
+"$"                                 { return yy::Parser::make_DOLLAR(loc_); }
+"*"                                 { return yy::Parser::make_MUL(loc_); }
+"/"                                 { return yy::Parser::make_DIV(loc_); }
+"%"                                 { return yy::Parser::make_MOD(loc_); }
+"+"                                 { return yy::Parser::make_PLUS(loc_); }
+"-"                                 { return yy::Parser::make_MINUS(loc_); }
+"<<"                                { return yy::Parser::make_LSHIFT(loc_); }
+">>"                                { return yy::Parser::make_RSHIFT(loc_); }
+"<"                                 { return yy::Parser::make_LT(loc_); }
+"<="                                { return yy::Parser::make_LE(loc_); }
+">"                                 { return yy::Parser::make_GT(loc_); }
+">="                                { return yy::Parser::make_GE(loc_); }
+"=="                                { return yy::Parser::make_EQ(loc_); }
+"!="                                { return yy::Parser::make_NE(loc_); }
+"&"                                 { return yy::Parser::make_BITAND(loc_); }
+"^"                                 { return yy::Parser::make_BITXOR(loc_); }
+"|"                                 { return yy::Parser::make_BITOR(loc_); }
+"&&"                                { return yy::Parser::make_AND(loc_); }
+"||"                                { return yy::Parser::make_OR(loc_); }
+
+
+[-*/%+<>=&^|@#!~]+                  { return yy::Parser::make_OPERATOR(yytext, loc_); }
+
+.                                   { throw_unrecognized_char(*yytext, loc_); }
+<<EOF>>                             { return yy::Parser::make_EOF(loc_); }
 
 %%
 
