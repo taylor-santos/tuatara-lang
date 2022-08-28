@@ -72,6 +72,8 @@ ident          [_0-9a-zA-Z]
 
 [[:digit:]]([_]*[[:digit:]]+)*      { return lex_int(yytext, loc_); }
 
+return                              { return yy::Parser::make_RETURN(loc_); }
+
 {ident_start}{ident}*               { return yy::Parser::make_IDENT(yytext, loc_); }
 {typename_start}{ident}*            { return yy::Parser::make_TYPENAME(yytext, loc_); }
 
@@ -82,7 +84,9 @@ ident          [_0-9a-zA-Z]
 "="                                 { return yy::Parser::make_ASSIGN(loc_); }
 ","                                 { return yy::Parser::make_COMMA(loc_); }
 "."                                 { return yy::Parser::make_DOT(loc_); }
-"`"                                 { return yy::Parser::make_TICK(loc_); }
+"'"                                 { return yy::Parser::make_TICK(loc_); }
+
+"["[[:blank:]]*"]"                  { return yy::Parser::make_BRACKETS(loc_); }
 
 "("                                 { return yy::Parser::make_LPAREN(loc_); }
 ")"                                 { return yy::Parser::make_RPAREN(loc_); }
