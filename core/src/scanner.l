@@ -51,6 +51,9 @@
 static yy::Parser::symbol_type
 lex_int(const char *yytext, yy::location loc);
 
+static yy::Parser::symbol_type
+lex_str(const char *yytext, yy::location loc);
+
 static void
 throw_unrecognized_char(char c, yy::location loc);
 
@@ -71,8 +74,11 @@ ident          [_0-9a-zA-Z]
 [/]{2}.*                            { /* Ignore comments */ }
 
 [[:digit:]]([_]*[[:digit:]]+)*      { return lex_int(yytext, loc_); }
+["][^\n\r]*["]                      { return lex_str(yytext, loc_); }
 
 return                              { return yy::Parser::make_RETURN(loc_); }
+struct                              { return yy::Parser::make_STRUCT(loc_); }
+operator                            { return yy::Parser::make_OPERATOR(loc_); }
 
 {ident_start}{ident}*               { return yy::Parser::make_IDENT(yytext, loc_); }
 {typename_start}{ident}*            { return yy::Parser::make_TYPENAME(yytext, loc_); }
@@ -86,8 +92,6 @@ return                              { return yy::Parser::make_RETURN(loc_); }
 "."                                 { return yy::Parser::make_DOT(loc_); }
 "'"                                 { return yy::Parser::make_TICK(loc_); }
 
-"["[[:blank:]]*"]"                  { return yy::Parser::make_BRACKETS(loc_); }
-
 "("                                 { return yy::Parser::make_LPAREN(loc_); }
 ")"                                 { return yy::Parser::make_RPAREN(loc_); }
 "{"                                 { return yy::Parser::make_LBRACE(loc_); }
@@ -99,6 +103,8 @@ return                              { return yy::Parser::make_RETURN(loc_); }
 "=>"                                { return yy::Parser::make_BIGARROW(loc_); }
 
 "$"                                 { return yy::Parser::make_DOLLAR(loc_); }
+"!"                                 { return yy::Parser::make_BANG(loc_); }
+"~"                                 { return yy::Parser::make_TILDE(loc_); }
 "*"                                 { return yy::Parser::make_MUL(loc_); }
 "/"                                 { return yy::Parser::make_DIV(loc_); }
 "%"                                 { return yy::Parser::make_MOD(loc_); }
@@ -118,8 +124,9 @@ return                              { return yy::Parser::make_RETURN(loc_); }
 "&&"                                { return yy::Parser::make_AND(loc_); }
 "||"                                { return yy::Parser::make_OR(loc_); }
 
+"---"                               { return yy::Parser::make_UNINIT(loc_); }
 
-[-*/%+<>=&^|@#!~]+                  { return yy::Parser::make_OPERATOR(yytext, loc_); }
+[-*/%+<>=&^|@#!~]+                  { return yy::Parser::make_SYMBOL(yytext, loc_); }
 
 .                                   { throw_unrecognized_char(*yytext, loc_); }
 <<EOF>>                             { return yy::Parser::make_EOF(loc_); }
@@ -138,13 +145,33 @@ lex_int(const char *yytext, yy::location loc) {
             // The c++ standard only guarantees that unsigned long long has *at least* 64 bits of precision.
             // Make sure that the conversion to uint64_t will not overflow.
             auto u64 = static_cast<uint64_t>(ull);
-            return yy::Parser::make_U64(u64, loc);
+            return yy::Parser::make_INT(u64, loc);
         }
     } catch (...) {}
     std::stringstream ss;
     ss << "syntax error, " << yytext << " out of range of u64";
     throw yy::Parser::syntax_error(loc, ss.str());
 }
+
+static yy::Parser::symbol_type
+lex_str(const char *yytext, yy::location loc) {
+
+    try {
+        auto text = std::string(yytext);
+        text.erase(remove(text.begin(), text.end(), '_'), text.end());
+        auto ull = std::stoull(text, nullptr, 10);
+        if (ull <= std::numeric_limits<uint64_t>::max()) {
+            // The c++ standard only guarantees that unsigned long long has *at least* 64 bits of precision.
+            // Make sure that the conversion to uint64_t will not overflow.
+            auto u64 = static_cast<uint64_t>(ull);
+            return yy::Parser::make_INT(u64, loc);
+        }
+    } catch (...) {}
+    std::stringstream ss;
+    ss << "syntax error, " << yytext << " out of range of u64";
+    throw yy::Parser::syntax_error(loc, ss.str());
+}
+
 
 static void
 throw_unrecognized_char(char c, yy::location loc) {

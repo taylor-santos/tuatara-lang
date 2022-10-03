@@ -67,17 +67,26 @@ target_include_directories(core
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9)
     # g++8 doesn't automatically link the std::filesystem library, so -lstdc++fs must be explicitly linked
     target_link_libraries(core
-            PUBLIC stdc++fs)
-endif ()
-if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 10)
+            PUBLIC stdc++fs
+            )
+elseif (CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 10)
     # clang++-9 warns by default when using designated initializers, which are standard in C++20
     target_compile_options(core
-            PUBLIC -Wno-c99-extensions)
+            PUBLIC -Wno-c99-extensions
+            )
 endif ()
 
 if (MSVC)
     target_compile_options(core
-            PUBLIC /Zc:__cplusplus) # Bison checks the __cplusplus macro to enable std::move
+            PUBLIC /Zc:__cplusplus # Bison checks the __cplusplus macro to enable std::move
+            PRIVATE /W4 /WX
+            /w44062 # enumerator 'identifier' in switch of enum 'enumeration' is not handled
+            )
     target_compile_definitions(core
-            PRIVATE _CRT_SECURE_NO_WARNINGS)
+            PRIVATE _CRT_SECURE_NO_WARNINGS
+            )
+else ()
+    target_compile_options(core
+            PRIVATE -Wall -Wextra -pedantic -Werror
+            )
 endif ()

@@ -83,13 +83,14 @@
 %token
     EOF 0       "end of file"
     RETURN      "return"
+    STRUCT      "struct"
+    OPERATOR    "operator"
     LPAREN      "("
     RPAREN      ")"
     LBRACE      "{"
     RBRACE      "}"
     LBRACKET    "["
     RBRACKET    "]"
-    BRACKETS    "[]"
     SEMICOLON   ";"
     TYPE_DECL   ":"
     DEFINE      ":="
@@ -101,6 +102,8 @@
     ARROW       "->"
     BIGARROW    "=>"
     DOLLAR      "$"
+    BANG        "!"
+    TILDE       "~"
     MUL         "*"
     DIV         "/"
     MOD         "%"
@@ -119,21 +122,21 @@
     BITOR       "|"
     AND         "&&"
     OR          "||"
+    UNINIT      "---"
 
 %token< uint64_t >
-    U64         "`U64` literal"
+    INT         "Int"
 
 %token< std::string >
     IDENT       "identifier"
     TYPENAME    "type name"
-    OPERATOR    "operator"
+    SYMBOL      "symbol"
 
 %type< std::stringstream >
     opt_lines
     lines
     line
-    expressions
-    opt_expression
+    block_line
     expression
     op_expr
     operand
@@ -145,25 +148,27 @@
     block
     tuple
     no_id_expr
-    func_expr
+    opt_struct_fields
+    struct_fields
+    struct_field
+    opt_exprs
+    exprs
+    op_def
     func_sig
     no_id_args
     no_id_exprs
     no_id_arg
     arg
+    types
     type
-    no_unit_types
-    no_unit_type
-    or_type
     or_types
     func_type
+    ptr_type
     simple_type
+    array
     ident_array
     idents
     ident
-    units
-    unit
-    unit_tuple
 
 %left "||"
 %left "&&"
@@ -175,7 +180,7 @@
 %left "<<" ">>"
 %left "+" "-"
 %left "*" "/" "%"
-%left "operator" "'"
+%left "symbol" "'"
 %precedence UNARY
 
 %start file
@@ -191,90 +196,165 @@ opt_lines
 
 lines
     : line
-    | lines line                                                { $$ = $1 << $2.str(); }
+    | block_line
+    | ";"                                                       { }
+    | lines line                                                { ($$ = $1) << $2.str(); }
+    | lines block_line                                          { ($$ = $1) << $2.str(); }
+    | lines ";"                                                 { ($$ = $1); }
 
 line
-    : expression ";"                                            { $$ = $1 << ";\n"; }
-    | "return" expression ";"                                   { $$ << "return (" << $2.str() << ");\n"; }
+    : no_id_expr ";"                                            { ($$ = $1) << ";\n"; }
+    | ident      ";"                                            { ($$ = $1) << ";\n"; }
+    | "return" no_id_expr ";"                                   { $$ << "return (" << $2.str() << ");\n"; }
+    | "return" ident      ";"                                   { $$ << "return (" << $2.str() << ");\n"; }
+    | ident  ":="         no_id_expr ";"                        { ($$ = $1) << " := (" << $3.str() << ");\n"; }
+    | ident  ":="         ident      ";"                        { ($$ = $1) << " := (" << $3.str() << ");\n"; }
+    | ident  "::"         no_id_expr ";"                        { ($$ = $1) << " :: (" << $3.str() << ");\n"; }
+    | ident  "::"         ident      ";"                        { ($$ = $1) << " :: (" << $3.str() << ");\n"; }
+    | ident  ":" type ":" no_id_expr ";"                        { ($$ = $1) << ": (" << $3.str() << ") = (" << $5.str() << ");\n"; }
+    | ident  ":" type ":" ident      ";"                        { ($$ = $1) << ": (" << $3.str() << ") = (" << $5.str() << ");\n"; }
+    | ident  ":" type "=" no_id_expr ";"                        { ($$ = $1) << ": (" << $3.str() << ") = (" << $5.str() << ");\n"; }
+    | ident  ":" type "=" ident      ";"                        { ($$ = $1) << ": (" << $3.str() << ") = (" << $5.str() << ");\n"; }
+    | ident  ":" type "=" "---"      ";"                        { ($$ = $1) << ": (" << $3.str() << ") = ---;\n"; }
+    | op_def ":="         no_id_expr ";"                        { ($$ = $1) << " := (" << $3.str() << ");\n"; }
+    | op_def ":="         ident      ";"                        { ($$ = $1) << " := (" << $3.str() << ");\n"; }
+    | op_def "::"         no_id_expr ";"                        { ($$ = $1) << " :: (" << $3.str() << ");\n"; }
+    | op_def "::"         ident      ";"                        { ($$ = $1) << " :: (" << $3.str() << ");\n"; }
+    | op_def ":" type "=" no_id_expr ";"                        { ($$ = $1) << ": (" << $3.str() << ") = (" << $5.str() << ");\n"; }
+    | op_def ":" type "=" ident      ";"                        { ($$ = $1) << ": (" << $3.str() << ") = (" << $5.str() << ");\n"; }
     | error ";"                                                 { $$ << "<ERROR>;\n"; yyerrok; }
 
-expressions
-    : expression
-    | error                                                     { $$ << "<ERROR>"; yyerrok; }
-    | expressions "," expression                                { $$ = $1 << ", " << $3.str(); }
-    | expressions "," error                                     { $$ = $1 << ", " << "<ERROR>"; yyerrok; }
-
-opt_expression
-    : %empty {}
-    | expression
+block_line
+    : block_expr
+    | "return" block_expr                                       { $$ << "return (" << $2.str() << ");\n"; }
+    | "type name" "::" "struct" "{" opt_struct_fields "}"       { $$ << $1  << " :: struct {\n" << $5.str() << "}\n"; }
+    | ident  ":="         block_expr                            { ($$ = $1) << " := "  << $3.str() << "\n"; }
+    | ident  "::"         block_expr                            { ($$ = $1) << " :: (" << $3.str() << ");\n"; }
+    | ident  ":" type ":" block_expr                            { ($$ = $1) << ": (" << $3.str() << ") = (" << $5.str() << ");\n"; }
+    | ident  ":" type "=" block_expr                            { ($$ = $1) << ": (" << $3.str() << ") = (" << $5.str() << ");\n"; }
+    | op_def ":="         block_expr                            { ($$ = $1) << " := (" << $3.str() << ");\n"; }
+    | op_def "::"         block_expr                            { ($$ = $1) << " :: (" << $3.str() << ");\n"; }
+    | op_def ":" type "=" block_expr                            { ($$ = $1) << ": (" << $3.str() << ") = (" << $5.str() << ");\n"; }
 
 expression
     : no_id_expr
+    | block_expr
     | ident
-    | unit
 
 no_id_expr
     : apply_expr
-    | block_expr
     | op_expr
-    | func_expr
-    | ident ":=" expression                                     { $$ = $1 << " := (" << $3.str() << ")"; }
-    | ident "::" expression                                     { $$ = $1 << " :: (" << $3.str() << ")"; }
-    | ident ":" type "=" expression                             { $$ = $1 << ": (" << $3.str() << ") = (" << $5.str() << ")"; }
+    | array
+    | func_sig no_id_expr                                       { ($$ = $1) << $2.str(); }
+    | func_sig ident                                            { ($$ = $1) << $2.str(); }
+
+op_def
+    : "operator" simple_type "[" types opt_comma "]"            { $$ << "(" << $2.str() << ")[]"; }
+    | "operator" simple_type "(" types opt_comma ")"            { $$ << "(" << $2.str() << ")()"; }
+    | "operator" simple_type "*"      simple_type               { $$ << "*"; }
+    | "operator" simple_type "/"      simple_type               { $$ << "/"; }
+    | "operator" simple_type "%"      simple_type               { $$ << "%"; }
+    | "operator" simple_type "+"      simple_type               { $$ << "+"; }
+    | "operator" simple_type "-"      simple_type               { $$ << "-"; }
+    | "operator" simple_type "<<"     simple_type               { $$ << "<<"; }
+    | "operator" simple_type ">>"     simple_type               { $$ << ">>"; }
+    | "operator" simple_type "<"      simple_type               { $$ << "<"; }
+    | "operator" simple_type "<="     simple_type               { $$ << "<="; }
+    | "operator" simple_type ">"      simple_type               { $$ << ">"; }
+    | "operator" simple_type ">="     simple_type               { $$ << ">="; }
+    | "operator" simple_type "=="     simple_type               { $$ << "=="; }
+    | "operator" simple_type "!="     simple_type               { $$ << "!="; }
+    | "operator" simple_type "&"      simple_type               { $$ << "&"; }
+    | "operator" simple_type "^"      simple_type               { $$ << "^"; }
+    | "operator" simple_type "|"      simple_type               { $$ << "|"; }
+    | "operator" simple_type "&&"     simple_type               { $$ << "&&"; }
+    | "operator" simple_type "||"     simple_type               { $$ << "||"; }
+    | "operator" simple_type "~"      simple_type               { $$ << "~"; }
+    | "operator" simple_type "!"      simple_type               { $$ << "!"; }
+    | "operator" simple_type "symbol" simple_type               { $$ << $3; }
+
+opt_struct_fields
+    : %empty {}
+    | struct_fields
+
+struct_fields
+    : struct_field
+    | struct_fields struct_field                                { ($$ = $1) << $2.str(); }
+
+struct_field
+    : ident  ":="         no_id_expr ";"                        { ($$ = $1) << " := " << "(" << $3.str() << ");\n"; }
+    | ident  ":="         ident      ";"                        { ($$ = $1) << " := " << "(" << $3.str() << ");\n"; }
+    | ident  ":="         block_expr                            { ($$ = $1) << " := " << "(" << $3.str() << ");\n"; }
+    | ident  "::"         no_id_expr ";"                        { ($$ = $1) << " :: " << "(" << $3.str() << ");\n"; }
+    | ident  "::"         ident      ";"                        { ($$ = $1) << " :: " << "(" << $3.str() << ");\n"; }
+    | ident  "::"         block_expr                            { ($$ = $1) << " :: " << "(" << $3.str() << ");\n"; }
+    | ident  ":" type                ";"                        { ($$ = $1) << ": "   << "(" << $3.str() << ");\n"; }
+    | ident  ":" type ":" no_id_expr ";"                        { ($$ = $1) << ": "   << "(" << $3.str() << ") = (" << $5.str() << ");\n"; }
+    | ident  ":" type ":" ident      ";"                        { ($$ = $1) << ": "   << "(" << $3.str() << ") = (" << $5.str() << ");\n"; }
+    | ident  ":" type ":" block_expr                            { ($$ = $1) << ": "   << "(" << $3.str() << ") = (" << $5.str() << ");\n"; }
+    | ident  ":" type "=" no_id_expr ";"                        { ($$ = $1) << ": "   << "(" << $3.str() << ") = (" << $5.str() << ");\n"; }
+    | ident  ":" type "=" ident      ";"                        { ($$ = $1) << ": "   << "(" << $3.str() << ") = (" << $5.str() << ");\n"; }
+    | ident  ":" type "=" block_expr                            { ($$ = $1) << ": "   << "(" << $3.str() << ") = (" << $5.str() << ");\n"; }
+    | ident  ":" type "=" "---"      ";"                        { ($$ = $1) << ": "   << "(" << $3.str() << ") = ---;\n"; }
 
 block_expr
-    : block
-    | type block                                                { $$ << "(" << $1.str() << ")" << $2.str(); }
+    :                       block
+    |           ident_array block                               { ($$                           = $1)      << $2.str(); }
+    |           "[" "]"     block                               { $$                           << "[]"     << $3.str(); }
+    | func_type             block                               { $$ << "(" << $1.str() << ")"             << $2.str(); }
+    | func_type ident_array block                               { $$ << "(" << $1.str() << ")" << $2.str() << $3.str(); }
+    | func_type "[" "]"     block                               { $$ << "(" << $1.str() << ")" << "[]"     << $4.str(); }
+    | func_sig block_expr                                       { ($$ = $1) << $2.str(); }
 
-func_expr
-    : func_sig expression                                       { $$ = $1 << "(" << $2.str() << ")"; }
 
 func_sig
-    : "(" no_id_args opt_comma ")" "=>"                         { $$ << "(" << $2.str() << ") => "; }
-    | "(" idents     opt_comma ")" "=>"                         { $$ << "(" << $2.str() << ") => "; }
-    | "(" ")"                      "=>"                         { $$ << "(" <<             ") => "; }
-    | ident                        "=>"                         { $$ << "(" << $1.str() << ") => "; }
+    : "(" no_id_args opt_comma ")" "=>"                         { $$ << "(" << $2.str()                     << ") => "; }
+    | "(" idents     opt_comma ")" "=>"                         { $$ << "(" << $2.str()                     << ") => "; }
+    | "("                      ")" "=>"                         { $$ << "("                                 << ") => "; }
+    | "("            ","       ")" "=>"                         { $$ << "("                                 << ") => "; }
+    | ident                        "=>"                         { $$ << "(" << $1.str()                     << ") => "; }
     | ident ":" type               "=>"                         { $$ << "(" << $1.str() << ": " << $3.str() << ") => "; }
 
 op_expr
-    : operand "*"  operand                                      { $$ << "(" << $1.str() << ") * ("  << $3.str() << ")"; }
-    | operand "/"  operand                                      { $$ << "(" << $1.str() << ") / ("  << $3.str() << ")"; }
-    | operand "%"  operand                                      { $$ << "(" << $1.str() << ") % ("  << $3.str() << ")"; }
-    | operand "+"  operand                                      { $$ << "(" << $1.str() << ") + ("  << $3.str() << ")"; }
-    | operand "-"  operand                                      { $$ << "(" << $1.str() << ") - ("  << $3.str() << ")"; }
-    | operand "<<" operand                                      { $$ << "(" << $1.str() << ") << (" << $3.str() << ")"; }
-    | operand ">>" operand                                      { $$ << "(" << $1.str() << ") >> (" << $3.str() << ")"; }
-    | operand "<"  operand                                      { $$ << "(" << $1.str() << ") < ("  << $3.str() << ")"; }
-    | operand "<=" operand                                      { $$ << "(" << $1.str() << ") <= (" << $3.str() << ")"; }
-    | operand ">"  operand                                      { $$ << "(" << $1.str() << ") > ("  << $3.str() << ")"; }
-    | operand ">=" operand                                      { $$ << "(" << $1.str() << ") >= (" << $3.str() << ")"; }
-    | operand "==" operand                                      { $$ << "(" << $1.str() << ") == (" << $3.str() << ")"; }
-    | operand "!=" operand                                      { $$ << "(" << $1.str() << ") != (" << $3.str() << ")"; }
-    | operand "&"  operand                                      { $$ << "(" << $1.str() << ") & ("  << $3.str() << ")"; }
-    | operand "^"  operand                                      { $$ << "(" << $1.str() << ") ^ ("  << $3.str() << ")"; }
-    | operand "|"  operand                                      { $$ << "(" << $1.str() << ") | ("  << $3.str() << ")"; }
-    | operand "&&" operand                                      { $$ << "(" << $1.str() << ") && (" << $3.str() << ")"; }
-    | operand "||" operand                                      { $$ << "(" << $1.str() << ") || (" << $3.str() << ")"; }
-    | operand "operator"    operand                             { $$ << "(" << $1.str() << ") "  << $2       << " ("  << $3.str() << ")"; }
+    : operand "*"       operand                                 { $$ << "(" << $1.str() << ") * ("  << $3.str() << ")"; }
+    | operand "/"       operand                                 { $$ << "(" << $1.str() << ") / ("  << $3.str() << ")"; }
+    | operand "%"       operand                                 { $$ << "(" << $1.str() << ") % ("  << $3.str() << ")"; }
+    | operand "+"       operand                                 { $$ << "(" << $1.str() << ") + ("  << $3.str() << ")"; }
+    | operand "-"       operand                                 { $$ << "(" << $1.str() << ") - ("  << $3.str() << ")"; }
+    | operand "<<"      operand                                 { $$ << "(" << $1.str() << ") << (" << $3.str() << ")"; }
+    | operand ">>"      operand                                 { $$ << "(" << $1.str() << ") >> (" << $3.str() << ")"; }
+    | operand "<"       operand                                 { $$ << "(" << $1.str() << ") < ("  << $3.str() << ")"; }
+    | operand "<="      operand                                 { $$ << "(" << $1.str() << ") <= (" << $3.str() << ")"; }
+    | operand ">"       operand                                 { $$ << "(" << $1.str() << ") > ("  << $3.str() << ")"; }
+    | operand ">="      operand                                 { $$ << "(" << $1.str() << ") >= (" << $3.str() << ")"; }
+    | operand "=="      operand                                 { $$ << "(" << $1.str() << ") == (" << $3.str() << ")"; }
+    | operand "!="      operand                                 { $$ << "(" << $1.str() << ") != (" << $3.str() << ")"; }
+    | operand "&"       operand                                 { $$ << "(" << $1.str() << ") & ("  << $3.str() << ")"; }
+    | operand "^"       operand                                 { $$ << "(" << $1.str() << ") ^ ("  << $3.str() << ")"; }
+    | operand "|"       operand                                 { $$ << "(" << $1.str() << ") | ("  << $3.str() << ")"; }
+    | operand "&&"      operand                                 { $$ << "(" << $1.str() << ") && (" << $3.str() << ")"; }
+    | operand "||"      operand                                 { $$ << "(" << $1.str() << ") || (" << $3.str() << ")"; }
+    | operand "symbol"  operand                                 { $$ << "(" << $1.str() << ") "  << $2       << " (" << $3.str() << ")"; }
     | operand "'" ident operand                                 { $$ << "(" << $1.str() << ") '" << $3.str() << " (" << $4.str() << ")"; }
-    | "+" operand        %prec UNARY                            { $$ << "+("      << $2.str() << ")"; }
-    | "-" operand        %prec UNARY                            { $$ << "-("      << $2.str() << ")"; }
-    | "operator" operand %prec UNARY                            { $$ << $1 << "(" << $2.str() << ")"; }
+    |         "+"       operand %prec UNARY                     { $$ << "+" << "(" << $2.str() << ")"; }
+    |         "-"       operand %prec UNARY                     { $$ << "-" << "(" << $2.str() << ")"; }
+    |         "!"       operand %prec UNARY                     { $$ << "!" << "(" << $2.str() << ")"; }
+    |         "~"       operand %prec UNARY                     { $$ << "~" << "(" << $2.str() << ")"; }
+    |         "^"       operand %prec UNARY                     { $$ << "^" << "(" << $2.str() << ")"; }
+    |         "&"       operand %prec UNARY                     { $$ << "&" << "(" << $2.str() << ")"; }
+    |         "symbol"  operand %prec UNARY                     { $$ << $1  << "(" << $2.str() << ")"; }
 
 operand
     : op_expr
     | apply_expr
     | ident
-    | unit
 
 apply_expr
     : simple_expr
-    | ident      no_paren_simple_expr                           { $$ << "(" << $1.str() << ")<-(" << $2.str() << ")"; }
-    | ident      ident                                          { $$ << "(" << $1.str() << ")<-(" << $2.str() << ")"; }
-    | unit       no_paren_simple_expr                           { $$ = $1 <<                "<-(" << $2.str() << ")"; }
-    | unit       ident                                          { $$ = $1 <<                "<-(" << $2.str() << ")"; }
-    | apply_expr no_paren_simple_expr                           { $$ << "(" << $1.str() << ")<-(" << $2.str() << ")"; }
-    | apply_expr ident                                          { $$ << "(" << $1.str() << ")<-(" << $2.str() << ")"; }
+    | ident      no_paren_simple_expr                           { $$ << "(" << $1.str() << ")(" << $2.str() << ")"; }
+    | ident      ident                                          { $$ << "(" << $1.str() << ")(" << $2.str() << ")"; }
+    | apply_expr no_paren_simple_expr                           { $$ << "(" << $1.str() << ")(" << $2.str() << ")"; }
+    | apply_expr ident                                          { $$ << "(" << $1.str() << ")(" << $2.str() << ")"; }
 
 simple_expr
     : no_paren_simple_expr
@@ -282,113 +362,106 @@ simple_expr
 
 no_paren_simple_expr
     : no_paren_simple_expr "." ident                            { $$ << "(" << $1.str() << ")." << $3.str(); }
-    | ident                "." ident                            { $$ << "(" << $1.str() << ")." << $3.str(); }
-    | no_paren_simple_expr tuple                                { $$ << "(" << $1.str() << ")<-" << $2.str(); }
-    | ident                tuple                                { $$ << "(" << $1.str() << ")<-" << $2.str(); }
-    | no_paren_simple_expr unit                                 { $$ << "(" << $1.str() << ")<-" << $2.str(); }
-    | ident                unit                                 { $$ << "(" << $1.str() << ")<-" << $2.str(); }
-    | no_paren_simple_expr "[" expressions "]"                  { $$ << "(" << $1.str() << ")[" << $3.str() << ",]"; }
-    | ident                "[" expressions "]"                  { $$ << "(" << $1.str() << ")[" << $3.str() << ",]"; }
-    | U64                                                       { $$ << $1; }
+    | ident                "." ident                            { ($$        = $1)       << "." << $3.str(); }
+    | no_paren_simple_expr tuple                                { $$ << "(" << $1.str() << ")(" << $2.str() << ")"; }
+    | ident                tuple                                { $$ << "(" << $1.str() << ")(" << $2.str() << ")"; }
+    | no_paren_simple_expr array                                { $$ << "(" << $1.str() << ")"  << $2.str(); }
+    | ident                array                                { ($$        = $1)       << "(" << $2.str() << ")"; }
+    | "Int"                                                     { $$ << $1; }
+    | "type name" "(" opt_exprs ")"                             { $$ << $1 << "{" << $3.str() << "}"; }
 
 paren_simple_expr
-    : tuple
-    | "[" no_id_exprs "]"                                       { $$ << "[" << $2.str() << ",]"; }
-    | ident_array
-    | paren_simple_expr "." ident                               { $$ = $1 << "." << $3.str(); }
-    | paren_simple_expr tuple                                   { $$ = $1 << "<-" << $2.str(); }
-    | paren_simple_expr unit                                    { $$ = $1 << "<-" << $2.str(); }
-    | unit              "." ident                               { $$ = $1 << "." << $3.str(); }
-    | unit              tuple                                   { $$ = $1 << "<-" << $2.str(); }
-    | unit              unit                                    { $$ = $1 << "<-" << $2.str(); }
-    | paren_simple_expr "[" expressions "]"                     { $$ = $1 << "[" << $3.str() << ",]"; }
-    | unit              "[" expressions "]"                     { $$ = $1 << "[" << $3.str() << ",]"; }
+    : tuple                                                     { $$ << "(" << $1.str() << ")"; }
+    | paren_simple_expr "." ident                               { ($$        = $1)       << "." << $3.str(); }
+    | paren_simple_expr tuple                                   { ($$        = $1)       << "(" << $2.str() << ")"; }
+    | paren_simple_expr array                                   { ($$        = $1)              << $2.str(); }
 
 tuple
-    : "(" no_id_exprs opt_comma ")"                             { $$ << "(" << $2.str() << ",)"; }
-    | "(" idents      opt_comma ")"                             { $$ << "(" << $2.str() << ",)"; }
+    : "(" no_id_exprs opt_comma ")"                             { ($$  = $2); }
+    | "(" idents      opt_comma ")"                             { ($$  = $2); }
+    | "("             ","       ")"                             { $$ << "(,)"; }
+
+array
+    : "[" no_id_exprs opt_comma "]"                             { $$ << "[" << $2.str() << "]"; }
+    | "[" idents      ","       "]"                             { $$ << "[" << $2.str() << "]"; }
+    | ident_array
+
+ident_array
+    : "[" idents "]"                                            { $$ << "[" << $2.str() << "]"; }
 
 no_id_exprs
     : no_id_expr
-    | idents      "," no_id_expr                                { $$ = $1 << ", " << $3.str(); }
-    | idents      "," unit                                      { $$ = $1 << ", " << $3.str(); }
-    | units       "," no_id_expr                                { $$ = $1 << ", " << $3.str(); }
-    | units       "," ident                                     { $$ = $1 << ", " << $3.str(); }
-    | no_id_exprs "," expression                                { $$ = $1 << ", " << $3.str(); }
+    | block_expr
+    | idents      "," no_id_expr                                { ($$ = $1) << ", " << $3.str(); }
+    | no_id_exprs "," expression                                { ($$ = $1) << ", " << $3.str(); }
+
+opt_exprs
+    : %empty {}
+    | exprs
+
+exprs
+    : expression
+    | exprs "," expression                                      { ($$ = $1) << ", " << $3.str(); }
 
 block
-    : "{" opt_expression "}"                                    { $$ << "{" << $2.str() << "}"; }
-    | "{" lines opt_expression "}"                              { $$ << "{" << $2.str() << $3.str() << "}"; }
+    : "{"                  "}"                                  { $$ << "{}\n"; }
+    | "{"       ";"        "}"                                  { $$ << "{}\n"; }
+    | "{"       line       "}"                                  { $$ << "{\n" << $2.str()               << "}\n"; }
+    | "{"       no_id_expr "}"                                  { $$ << "{\n" << $2.str()             << "\n}\n"; }
+    | "{"       ident      "}"                                  { $$ << "{\n" << $2.str()             << "\n}\n"; }
+    | "{"       block_line "}"                                  { $$ << "{\n" << $2.str()               << "}\n"; }
+    | "{" lines line       "}"                                  { $$ << "{\n" << $2.str() << $3.str()   << "}\n"; }
+    | "{" lines no_id_expr "}"                                  { $$ << "{\n" << $2.str() << $3.str() << "\n}\n"; }
+    | "{" lines ident      "}"                                  { $$ << "{\n" << $2.str() << $3.str() << "\n}\n"; }
+    | "{" lines block_line "}"                                  { $$ << "{\n" << $2.str() << $3.str() <<   "}\n"; }
+    | "{" lines ";"        "}"                                  { $$ << "{\n" << $2.str()             <<   "}\n"; }
 
 arg
     : no_id_arg
     | ident
 
 no_id_arg
-    : ident ":" type                                            { $$ = $1 << ": " << $3.str(); }
+    : ident ":" type                                            { ($$ = $1) << ": " << $3.str(); }
 
 no_id_args
     : no_id_arg
-    | idents     "," no_id_arg                                  { $$ = $1 << ", " << $3.str(); }
-    | no_id_args "," arg                                        { $$ = $1 << ", " << $3.str(); }
+    | idents     "," no_id_arg                                  { ($$ = $1) << ", " << $3.str(); }
+    | no_id_args "," arg                                        { ($$ = $1) << ", " << $3.str(); }
+
+types
+    : type
+    | types "," type
 
 type
-    : no_unit_type
-    | unit
-
-no_unit_type
-    : or_type
+    : or_types
     | func_type
 
 func_type
-    : simple_type "->" simple_type                              { $$ << "(" << $1.str() << ")->(" << $3.str() << ")"; }
-    | simple_type "->" unit                                     { $$ << "(" << $1.str() << ")->"  << $3.str(); }
-    | unit        "->" simple_type                              { $$ = $1 <<                "->(" << $3.str() << ")"; }
-    | unit        "->" unit                                     { $$ = $1 <<                "->"  << $3.str(); }
-    | simple_type "->" func_type                                { $$ << "(" << $1.str() << ")->(" << $3.str() << ")"; }
-    | unit        "->" func_type                                { $$ = $1 <<                "->"  << $3.str(); }
-
-or_type
-    : simple_type
-    | or_types
+    : ptr_type
+    | ptr_type "->" func_type                                   { $$ << "(" << $1.str() << ")->(" << $3.str() << ")"; }
 
 or_types
     : simple_type "|" simple_type                               { $$ << "(" << $1.str() << ") | (" << $3.str() << ")"; }
-    | or_types    "|" simple_type                               { $$ = $1 << " | (" << $3.str() << ")"; }
+    | or_types    "|" simple_type                               { ($$ = $1) << " | (" << $3.str() << ")"; }
+
+ptr_type
+    : simple_type
+    | "[" "]" ptr_type                                          { $$ <<    "[](" << $3.str() << ")"; }
+    | array   ptr_type                                          { ($$ = $1) << "(" << $2.str() << ")"; }
+    | "^"     ptr_type                                          { $$ <<  "^(" << $2.str() << ")"; }
 
 simple_type
     : "type name"                                               { $$ << $1; }
     | "$" "type name"                                           { $$ << "$" << $2; }
-    | simple_type "[]"                                          { $$ << "(" << $1.str() << ")[]"; }
-    | unit        "[]"                                          { $$        << $1.str()  << "[]"; }
-    | "(" no_unit_types opt_comma ")"                           { $$ << "(" << $2.str() << ",)"; }
-
-no_unit_types
-    : no_unit_type
-    | units         "," no_unit_type                            { $$ = $1 << ", " << $3.str(); }
-    | no_unit_types "," type                                    { $$ = $1 << ", " << $3.str(); }
-
-ident_array
-    : "[" idents opt_comma "]"                                  { $$ << "[" << $2.str() << ",]"; }
+    | "(" types opt_comma ")"                                   { $$ <<   "(" << $2.str() << ")"; }
+    | "("                 ")"                                   { $$ <<   "(" <<             ")"; }
 
 idents
     : ident
-    | idents "," ident                                          { $$ = $1 << ", " << $3.str(); }
+    | idents "," ident                                          { ($$ = $1) << ", " << $3.str(); }
 
 ident
     : "identifier"                                              { $$ << $1; }
-
-units
-    : unit
-    | units "," unit                                            { $$ = $1 << ", " << $3.str(); }
-
-unit_tuple
-    : "(" units opt_comma ")"                                   { $$ << "(" << $2.str() << ",)"; }
-
-unit
-    : unit_tuple
-    | "(" ")"                                                   { $$ << "()"; }
-
 
 opt_comma
     : %empty
@@ -406,216 +479,28 @@ static std::vector<print::colored_text>
 symbol_kind_name(const yy::Parser::symbol_kind_type &kind, print::color highlight = print::color::bold_red) {
     using namespace print;
     switch (kind) {
-        case Parser::symbol_kind::S_LPAREN:
-            return {
-                {"`", color::bold_gray},
-                {"(", highlight},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_RPAREN:
-            return {
-                {"`", color::bold_gray},
-                {")", highlight},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_LBRACE:
-            return {
-                {"`", color::bold_gray},
-                {"{", highlight},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_RBRACE:
-            return {
-                {"`", color::bold_gray},
-                {"}", highlight},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_LBRACKET:
-            return {
-                {"`", color::bold_gray},
-                {"[", highlight},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_RBRACKET:
-            return {
-                {"`", color::bold_gray},
-                {"]", highlight},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_SEMICOLON:
-            return {
-                {"`", color::bold_gray},
-                {";", highlight},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_TYPE_DECL:
-            return {
-                {"`", color::bold_gray},
-                {":", highlight},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_DEFINE:
-            return {
-                {"`", color::bold_gray},
-                {":=", highlight},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_CONSTDEF:
-            return {
-                {"`", color::bold_gray},
-                {"::", highlight},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_ASSIGN:
-            return {
-                {"`", color::bold_gray},
-                {"=", highlight},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_COMMA:
-            return {
-                {"`", color::bold_gray},
-                {",", highlight},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_DOT:
-            return {
-                {"`", color::bold_gray},
-                {".", highlight},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_ARROW:
-            return {
-                {"`", color::bold_gray},
-                {"->", highlight},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_BIGARROW:
-            return {
-                {"`", color::bold_gray},
-                {"=>", highlight},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_MUL:
-            return {
-                {"`", color::bold_gray},
-                {"*", highlight},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_DIV:
-            return {
-                {"`", color::bold_gray},
-                {"/", highlight},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_MOD:
-            return {
-                {"`", color::bold_gray},
-                {"%", highlight},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_PLUS:
-            return {
-                {"`", color::bold_gray},
-                {"+", highlight},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_MINUS:
-            return {
-                {"`", color::bold_gray},
-                {"-", highlight},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_LSHIFT:
-            return {
-                {"`", color::bold_gray},
-                {"<<", highlight},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_RSHIFT:
-            return {
-                {"`", color::bold_gray},
-                {">>", highlight},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_LT:
-            return {
-                {"`", color::bold_gray},
-                {"<", highlight},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_LE:
-            return {
-                {"`", color::bold_gray},
-                {"<=", highlight},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_GT:
-            return {
-                {"`", color::bold_gray},
-                {">", highlight},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_GE:
-            return {
-                {"`", color::bold_gray},
-                {">=", highlight},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_EQ:
-            return {
-                {"`", color::bold_gray},
-                {"==", highlight},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_NE:
-            return {
-                {"`", color::bold_gray},
-                {"!=", highlight},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_BITAND:
-            return {
-                {"`", color::bold_gray},
-                {"&", highlight},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_BITXOR:
-            return {
-                {"`", color::bold_gray},
-                {"^", highlight},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_BITOR:
-            return {
-                {"`", color::bold_gray},
-                {"|", highlight},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_AND:
-            return {
-                {"`", color::bold_gray},
-                {"&&", highlight},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_OR:
-            return {
-                {"`", color::bold_gray},
-                {"||", highlight},
-                {"`", color::bold_gray}
-            };
+        case Parser::symbol_kind::S_RETURN:
+        case Parser::symbol_kind::S_STRUCT:
         case Parser::symbol_kind::S_OPERATOR:
-            return {{"operator", highlight}};
-        case Parser::symbol_kind::S_U64:
-            return {{"int literal", highlight}};
-        case Parser::symbol_kind::S_IDENT:
-            return {{"identifier", highlight}};
-        case Parser::symbol_kind::S_TYPENAME:
-            return {{"type name", highlight}};
+            return {
+                {"keyword `", color::bold_gray},
+                {Parser::symbol_name(kind), highlight},
+                {"`", color::bold_gray}
+            };
+        case Parser::symbol_kind::S_INT:
+            return {
+                {"`", color::bold_gray},
+                {Parser::symbol_name(kind), highlight},
+                {"` literal", color::bold_gray}
+            };
         default:
             break;
     }
-    return {{yy::Parser::symbol_name(kind), highlight}};
+    return {
+        {"`", color::bold_gray},
+        {Parser::symbol_name(kind), highlight},
+        {"`", color::bold_gray}
+    };
 }
 
 static std::vector<print::colored_text>
@@ -623,27 +508,18 @@ symbol_type_name(const yy::Parser::symbol_type &tok) {
     using namespace print;
     auto kind = tok.kind();
     switch (kind) {
-        case Parser::symbol_kind::S_U64:
+        case Parser::symbol_kind::S_INT:
             return {
-                {"`U64` literal `", color::bold_gray},
+                {"Int literal `", color::bold_gray},
                 {std::to_string(tok.value.as<std::uint64_t>()), color::bold_red},
                 {"`", color::bold_gray}
             };
         case Parser::symbol_kind::S_IDENT:
-            return {
-                {"identifier `", color::bold_gray},
-                {tok.value.as<std::string>(), color::bold_red},
-                {"`", color::bold_gray}
-            };
         case Parser::symbol_kind::S_TYPENAME:
+        case Parser::symbol_kind::S_SYMBOL:
             return {
-                {"type name `", color::bold_gray},
-                {tok.value.as<std::string>(), color::bold_red},
-                {"`", color::bold_gray}
-            };
-        case Parser::symbol_kind::S_OPERATOR:
-            return {
-                {"operator `", color::bold_gray},
+                {Parser::symbol_name(kind), color::bold_gray},
+                {" `", color::bold_gray},
                 {tok.value.as<std::string>(), color::bold_red},
                 {"`", color::bold_gray}
             };

@@ -17,17 +17,30 @@
 
 // conflicting_value : Foo = 123;
 
+(arg: [5]^Foo) => 123;
+
+g(f(x));
+g f(x);
+g f x;
+
 func := a: U64 => b: U64 => c: U64->() => c a;
 
 a := func 1;
 b := a 2;
 c := b (x: U64 => x);
 
-println := (message: U64) => {
+(a);
+(a,);
+(a,b);
+(a,b,);
+(a,b,c);
+(a,b,c,);
+
+println :: (message: U64) => {
     x := 5;
     y := 5;
     message
-};
+}
 
 // super : (U64,)    = (1,);
 // sub   : (U64,U64) = (1,2);
@@ -91,8 +104,12 @@ println := (message: U64) => {
 //
 // foo a + b
 
-foo [5];
-foo([5]);
+foo [5];  // array foo indexed at 5
+foo([5]); // func foo invoked with [5]
+
+[5] ^ Foo -> Bar [x] {
+    (arg: [5]^Foo) => Bar()
+}
 
 one_tup := (1,);
 foo := (x:U64, y:U64) => 5;
@@ -100,7 +117,7 @@ bar := (t:(U64,U64)) => 5;
 //baz := (f:(U64,U64)) => U64 { () };
 baz foo; // foo takes 2 int arguments
 baz bar; // bar takes 1 (int,int) argument
-first := (x:U64[]) => x[0];
+first := (x:[]U64) => x[0];
 a := (x:U64)=>[x];
 get_name := x => x.name;
 compose :: (f: $A->$B, g: B->$C) => x => g f x;
@@ -109,48 +126,48 @@ compose :: (f: $A->$B, g: B->$C) => A->C {
     (x: A) => C {
         g(f(x))
     }
-};
+}
 
-foo :: x: U64[] => ((),(),) {
-    123
-};
+foo :: x: []U64 => U64 {
+    x[0]
+}
 
-do_nothing :: () => ((),()) { () };
+do_nothing :: () => () { (,) }
 
 unit :: () {
 
-};
+}
 
-(a : ()) => ();
-(a : (())) => ();
-(a : ((),())) => ();
-(a : (XX,())) => ();
-(a : ((),XX)) => ();
-(a : (XX,XX)) => ();
-((),(),());
-(12,(),());
-((),12,());
-(12,12,());
-((),(),12);
-(12,(),12);
-((),12,12);
-(12,12,12);
-(ab,(),());
-((),ab,());
-(ab,ab,());
-((),(),ab);
-(ab,(),ab);
-((),ab,ab);
-(ab,ab,ab);
+(a : ()) => (,);
+(a : (())) => (,);
+(a : ((),())) => (,);
+(a : (XX,())) => (,);
+(a : ((),XX)) => (,);
+(a : (XX,XX)) => (,);
+((,),(,),(,));
+(123,(,),(,));
+((,),123,(,));
+(123,123,(,));
+((,),(,),123);
+(123,(,),123);
+((,),123,123);
+(123,123,123);
+(abc,(,),(,));
+((,),abc,(,));
+(abc,abc,(,));
+((,),(,),abc);
+(abc,(,),abc);
+((,),abc,abc);
+(abc,abc,abc);
 
-((),())[123];
+((,), (,))[1];
 
 v1 'cross v2; // desugars to cross(v1, v2);
 
 a b 'c d e;
 - b 'c d e;
 
-foo ::(((()),1));
+foo ::((((,)), 1));
 foo :
 (
     (
@@ -160,3 +177,39 @@ foo :
         ),
     )
 ) = 1;
+
+foo : () | () = 5;
+
+foo :: (x: ^U64) => ^x;
+
+bar :: (,) * b;
+
+exp :: x => e ^ x;
+
+captured :: 123;
+cap_block :: U64 [captured] {
+    a :: {
+        123
+    };
+}
+
+foo : []U64 -> ^U64 = 5;
+
+
+main :: (args: []String) => {
+
+}
+
+foo (Int []{
+    123
+});
+
+{
+    a :: 5;
+    println a;
+}
+
+Foo :: struct {
+    x : U64;
+    y : U64;
+}
